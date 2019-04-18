@@ -40,7 +40,7 @@
 #include <set>
 #include <list>
 #include <bitset>
-#include <unordered_map>
+#include <new>
 #include "kvs_adi_internal.h"
 #include "history.hpp"
 
@@ -110,6 +110,428 @@ public:
     uint64_t get_available() { return -1; }
 };
 
+#define GC_SYNC_WATERMARK 4
+#define GC_LOW_WATERMARK 0.4
+#define GC_HIGH_WATERMARK 0.6
+
+#define GC_BLK_THRES 0.3
+// record_meta (or chunks meta)
+typedef struct {
+    std::string key;
+    uint16_t start;
+    uint32_t length; // in bytes
+} obj_meta;
+
+typedef struct {
+    uint32_t bpid;
+    uint16_t bid;
+    uint16_t pid;
+    uint16_t offset; // within page 
+    uint8_t obj_idx;
+    uint32_t length;
+} kv_index;
+
+class kvssd_block;
+class kvssd_plane;
+class kvssd_ftl;
+// page class only store metadata
+class kvssd_page {
+private:
+    kvssd_block *parent;
+    //char state; // 0-free 1-dirty 2-in-use
+    obj_meta *obj_infos;
+    char *obj_states; // 0-free, 1-use, 2-delete
+    uint8_t active_obj;
+    uint8_t max_num_objs;
+
+    uint16_t tail;
+public:
+    kvssd_page (kvssd_block *p, uint8_t max_objs) : 
+    parent(p), max_num_objs(max_objs) {
+        obj_infos = new obj_meta[max_num_objs];
+        obj_states = new char[max_num_objs];
+        for (uint8_t i = 0; i < max_num_objs; i++) {
+            obj_states[i] = 0;
+        }
+        active_obj = 0;
+        tail = 0;
+    };
+    ~kvssd_page () {
+        delete [] obj_infos;
+        delete [] obj_states;
+    };
+    kvssd_block *get_parent() {return parent;}
+    uint16_t get_tail() {return tail;}
+    uint16_t get_avail_bytes() ;
+    uint8_t get_avail_objs() {return max_num_objs - active_obj;}
+    uint8_t get_active_obj_info() {return active_obj;}
+    char get_obj_state(uint8_t obj_id) {return obj_states[obj_id];}
+    obj_meta &get_obj_key(uint8_t obj_id) {return obj_infos[obj_id];}
+    void insert_obj_info(const kv_key *key, uint32_t vlen) {
+        // run out of OOB space, skip the page
+        if (active_obj >= max_num_objs) {
+            printf("run out of OOB space, skip the page\n");
+            exit(-1);
+        }
+        obj_states[active_obj] = 1;
+        obj_infos[active_obj] = {std::string((char*)key->key,key->length), tail, vlen};
+
+        active_obj++;
+    };
+    void delete_obj_info(int obj_id) {
+        obj_states[obj_id] = 2;
+    };
+    void consume_bytes (uint32_t len) {
+        if (len > get_avail_bytes()) {
+            printf("kvssd_page not enough bytes for page comsume\n");
+            exit(1);
+        }
+        tail += len;
+    };
+    void erase() {
+        for (uint8_t i = 0; i < max_num_objs; i++) {
+            obj_states[i] = 0;
+        }
+        active_obj = 0;
+        tail = 0;
+    }
+};
+
+class kvssd_block {
+private:
+    friend class kvssd_page;
+    kvssd_plane *parent;
+    uint16_t bid;
+    uint16_t page_size;
+    uint16_t page_cnt;
+    kvssd_page *pages;
+    
+    // block metadata
+    char state; // 0-free 1-dirty
+    kvssd_page * active_page;
+    uint16_t used_pages;
+    uint32_t valid_bytes;
+public:
+    kvssd_block(kvssd_plane *p, uint16_t blk_id, uint16_t pg_size, uint16_t pg_cnt) : 
+        parent(p), bid(blk_id), page_size(pg_size), page_cnt(pg_cnt) {
+        // initialize pages in block
+        uint8_t max_num_objs = page_size / 128; // 128bytes chunk, 2bytes metadata per obj
+        pages = (kvssd_page *)malloc(sizeof(kvssd_page) * page_cnt);
+        for (uint16_t i = 0; i < page_cnt; i++) {
+            (void) new (&pages[i]) kvssd_page(this, max_num_objs);
+        }
+        valid_bytes = 0;
+        used_pages = 0;
+        state = 0;
+        active_page = &pages[0];
+    };
+    ~kvssd_block() {free(pages);}
+    double get_util() {
+        return (double)valid_bytes/page_cnt/page_size;
+    }
+    uint16_t get_avail_pages() { return page_cnt-used_pages-1;}
+    kvssd_page* get_active_page() {return active_page;}
+    uint16_t get_active_pid() {return (uint16_t)(active_page-pages);}
+    kvssd_page* get_page(uint32_t pid) {return &pages[pid];}
+    
+    uint32_t get_avail_bytes() {
+        return get_avail_pages()*page_size + active_page->get_avail_bytes();
+    };
+    kvssd_page* next_active_page() {
+        used_pages++;
+        active_page++;
+        return active_page;
+    }
+    void consume_pages (uint32_t vlen) {
+        if (vlen > get_avail_bytes()) {
+            printf("kvssd_block not enough pages to consume\n");
+            exit(1);
+        }
+        valid_bytes += vlen;
+        do {
+            uint16_t page_space = get_active_page()->get_avail_bytes();
+            uint16_t comsume_space = vlen <= page_space ? vlen : page_space;
+            get_active_page()->consume_bytes(comsume_space);
+            if ((get_active_page()->get_avail_bytes() == 0 || 
+                get_active_page()->get_avail_objs() <= 0) && used_pages < page_cnt-1) {
+                active_page++;
+                used_pages++;
+                if (used_pages >256) {
+                    printf("assert used_pages > 256\n");
+                }
+            }
+            vlen -= comsume_space;
+        } while(vlen > 0);
+        
+    };
+    kvssd_plane *get_parent() {return parent;}
+    uint16_t get_id() {return bid;}
+    void mark_dirty() {state = 1;}
+    char get_state() {return state;}
+    void invalid_bytes(uint32_t vlen) {valid_bytes -= vlen;};
+
+    void erase() {
+        for (uint16_t i = 0; i < page_cnt; i++) {
+            pages[i].erase();
+        }
+        valid_bytes = 0;
+        used_pages = 0;
+        state = 0;
+        active_page = &pages[0];
+    }
+
+};
+
+class kvssd_plane {
+private:
+    kvssd_ftl *parent;
+    uint32_t bpid;
+    uint16_t block_cnt;
+    uint32_t block_size;
+    uint16_t page_cnt;
+    uint16_t page_size;
+    kvssd_block* blocks;
+    kvssd_block* active_block;
+    // block management
+    std::list<uint16_t> free_blocks;
+    std::list<uint16_t> dirty_blocks;
+    uint16_t used_blocks;
+    
+public:
+    std::mutex plane_mutex;
+
+    kvssd_plane (kvssd_ftl *p, uint32_t pool_id, uint32_t blk_size, uint16_t blk_cnt, uint16_t pg_size) :
+    parent(p), bpid(pool_id), block_cnt(blk_cnt), block_size(blk_size), page_size(pg_size) {
+        blocks = (kvssd_block *)malloc(sizeof(kvssd_block)*block_cnt);
+        page_cnt = block_size/page_size;
+        for (uint16_t i = 0; i < block_cnt; i++) {
+            (void) new (&blocks[i]) kvssd_block(this, i, page_size, page_cnt);
+            free_blocks.push_back(i);
+        }
+        used_blocks = 0;
+        active_block = &blocks[free_blocks.front()];
+        free_blocks.pop_front();
+    };
+    ~kvssd_plane () {
+        free(blocks);
+    };
+    kvssd_block* BLAlloc() {return active_block;}
+    kvssd_block* get_active_block() {return active_block;}
+    kvssd_block* get_block(uint16_t bid) { return &blocks[bid];}
+    kvssd_block* next_active_block (bool affirm) {
+        // TODO: check available block and insert GC if possible
+        get_active_block()->mark_dirty();
+        dirty_blocks.push_back(get_block_id(get_active_block()));
+
+        // check free block first
+        if (free_blocks.size() <= GC_SYNC_WATERMARK && (!affirm)) {
+            reclaim_block_sync();
+        }
+        active_block = &blocks[free_blocks.front()];
+        free_blocks.pop_front();
+        used_blocks++;
+        return active_block;
+    };
+    void reclaim_block();
+    void reclaim_block_sync();
+    void consume_blocks(uint16_t num_blks, bool affrim) { 
+        // consume aligned blocks (for large objects)
+        if (get_active_block()->get_avail_bytes() != block_size) {
+            printf("kvssd_plane not clean block when consuming block\n");
+            exit(0);
+        }
+        for (uint16_t i = 0; i < num_blks; i++) {
+            get_active_block()->consume_pages(block_size);
+            next_active_block(affrim);
+        }
+    };
+    uint32_t get_id() {return bpid;};
+    uint16_t get_block_id(kvssd_block *blk) {return (uint16_t)(blk - blocks);}
+    uint32_t get_plane_size() {return block_size*block_cnt;}
+    void write(const kv_key *key, const kv_value *value, bool affirm) {
+        uint32_t vlen = value->length;
+        kvssd_block *block = get_active_block();
+        kvssd_page *page = block->get_active_page();
+        page->insert_obj_info(key, vlen); // store metadata in page OOB area
+
+        // comsume pages
+        if (vlen > block_size) {
+            // should not happen in our evaluation
+            uint16_t blocks_need = vlen/block_size + (uint16_t)(vlen%block_size != 0);
+            consume_blocks(blocks_need, affirm);
+        }
+        else { // should have enough space in the active block
+            block->consume_pages(vlen);
+            if (block->get_avail_bytes() == 0) {
+                next_active_block(affirm);
+            }
+        }
+    }
+    void tombmark(kv_index &kv_idx) {
+        kvssd_page *page = get_block(kv_idx.bid)->get_page(kv_idx.pid);
+        page->delete_obj_info(kv_idx.obj_idx);
+        get_block(kv_idx.bid)->invalid_bytes(kv_idx.length);
+    }
+
+    kv_index get_index(const kv_key *key, uint32_t vlen, bool affirm) {
+        // index allocation
+        kvssd_block* block;
+        kvssd_page *page;
+        block = BLAlloc();
+        page = block->get_active_page();
+
+        if (page->get_avail_objs() <= 0) {
+            page = block->next_active_page(); // TODO: is this right?
+        }
+        
+        if (vlen > get_plane_size()) {
+            printf("Not support object size larger than plane size");
+            exit(-1);
+        }
+        else if (vlen > block_size) {
+            /* large objects will align with block, benefit for GC */
+            block = next_active_block(affirm);
+            page = block->get_active_page();
+        }
+        else if (block->get_avail_bytes() < vlen) {
+            // we cannot fit in the active block
+            /* advance the active block */
+            block = next_active_block(affirm);
+            page = block->get_active_page();
+        }
+
+        kv_index kv_idx {get_id(), block->get_id(), block->get_active_pid(), \
+        page->get_tail(), page->get_active_obj_info(), vlen};
+        
+        return kv_idx;
+    }
+};
+
+class kvssd_ftl {
+private:
+    // block arch
+    uint32_t blk_pool_cnt;
+    uint32_t blk_pool_size;
+    uint32_t block_size;
+    uint16_t page_size;
+    kvssd_plane* planes;
+    uint32_t active_pool_id;
+    // key component for kvssd indexing
+    std::unordered_map<std::string, kv_index> kv_hash_index;
+    std::mutex kv_index_mutex;
+
+    kvssd_plane* PAlloc() {
+        kvssd_plane* ret = &planes[active_pool_id];
+         // round robin way (simplified SSD plane allocation)
+        active_pool_id = (active_pool_id + 1) % blk_pool_cnt;
+        return ret;
+    };
+    kvssd_plane* get_plane(uint32_t bpid) {return &planes[bpid];};
+
+public:
+    kvssd_ftl(uint32_t bp_size, uint32_t bp_cnt, uint32_t blk_size, uint16_t pg_size) :
+    blk_pool_cnt(bp_cnt), blk_pool_size(bp_size), block_size(blk_size), page_size(pg_size) {
+        planes = (kvssd_plane*)malloc(sizeof(kvssd_plane) * blk_pool_cnt);
+        uint32_t blks_in_pool = (blk_pool_size / block_size);
+        for (uint32_t i = 0; i < blk_pool_cnt; i++) {
+            (void) new (&planes[i]) kvssd_plane(this, i, block_size, blks_in_pool, page_size);
+        }
+        active_pool_id = 0;
+        printf("kvssd_ftl constructed\n");
+    };
+
+    // public interface 
+    void kvssd_ftl_insert(const kv_key *key, const kv_value *value, kvssd_plane* plane) {
+        if (((char *)key->key)[10] == '3' && ((char *)key->key)[11] == '0' && ((char *)key->key)[12] == '9'
+        &&((char *)key->key)[13] == '2' && ((char *)key->key)[14] == '3')
+        {
+            printf("30923\n");
+        }
+        uint32_t vlen = value->length;
+        {
+            std::unique_lock<std::mutex> lock(plane->plane_mutex);
+            kv_index kv_idx = plane->get_index(key, vlen, false);
+
+            // hash index entry
+            {
+                std::unique_lock<std::mutex> lock(kv_index_mutex);
+                std::string s_key = std::string((char *)key->key, key->length);
+                auto it = kv_hash_index.find(s_key);
+                if (it != kv_hash_index.end()) {
+                    printf("[kvssd_ftl_insert] record exist\n");
+                    exit(-1);
+                }
+                else {
+                    kv_hash_index.emplace(std::make_pair(s_key, kv_idx));
+                }
+            }
+
+            // perform actual write
+            plane->write(key, value, false);
+        }
+    }
+
+    void kvssd_ftl_insert(const kv_key *key, const kv_value *value) {
+        kvssd_ftl_insert(key, value, PAlloc());
+    }
+    void kvssd_ftl_update(const kv_key *key, const kv_value *value) {
+        kvssd_ftl_delete(key);
+        kvssd_ftl_insert(key, value);
+    };
+    void kvssd_ftl_delete(const kv_key *key) {
+        // check mapping table, delete entry
+        kv_index kv_idx;
+        {
+            std::unique_lock<std::mutex> lock(kv_index_mutex);
+            std::string s_key = std::string((char *)key->key, key->length);
+            auto it = kv_hash_index.find(s_key);
+            if (it != kv_hash_index.end()) {
+                kv_idx = it->second;
+                kv_hash_index.erase(it);
+            }
+            else {
+                printf("[kvssd_ftl_delete] record not exist\n");
+                exit(0);
+            }
+        }
+
+        kvssd_plane *plane = get_plane(kv_idx.bpid);
+        {
+            std::unique_lock<std::mutex> lock(plane->plane_mutex);
+            // delete metadata
+            plane->tombmark(kv_idx);
+        }
+       
+    };
+    void kvssd_ftl_replace(const kv_key *key, const kv_value *value, kvssd_plane* plane) {
+        
+        uint32_t vlen = value->length;
+        {
+            kv_index kv_idx = plane->get_index(key, vlen, true);
+
+            // hash index entry
+            {
+                std::unique_lock<std::mutex> lock(kv_index_mutex);
+                std::string s_key = std::string((char *)key->key, key->length);
+                auto it = kv_hash_index.find(s_key);
+                if (it == kv_hash_index.end()) {
+                    printf("[kvssd_ftl_replace] record not exist\n");
+                    exit(-1);
+                }
+                else {
+                    // overwrite index
+                    it->second = kv_idx;
+                }
+            }
+
+            // perform actual write
+            plane->write(key, value, true);
+        }
+    }
+    void kvssd_ftl_get(const kv_key *key) {}; // don't model kv_get
+
+};
+
 class kv_emulator : public kv_device_api{
 public:
     kv_emulator(uint64_t capacity, std::vector<double> iops_model_coefficients, bool_t use_iops_model, uint32_t nsid);
@@ -162,6 +584,8 @@ private:
     bool_t m_use_iops_model;
 
     uint32_t m_nsid;
+    // ftl
+    kvssd_ftl *ftl;
 
     kv_interrupt_handler m_interrupt_handler;
 };

@@ -44,10 +44,58 @@ uint64_t _kv_emul_queue_latency;
 
 namespace kvadi {
 
+    uint16_t kvssd_page::get_avail_bytes() {return ((parent->page_size)-tail);};
+
+    void kvssd_plane::reclaim_block() {
+        // block the plane
+        std::unique_lock<std::mutex> lock(plane_mutex);
+        reclaim_block_sync();
+    }
+    void kvssd_plane::reclaim_block_sync() {
+        // find candidate block
+        double min_used = 1;
+        std::list<uint16_t>::iterator it_candidate;
+        for (auto it = dirty_blocks.begin(); it!=dirty_blocks.end(); ++it) {
+            double util = get_block(*it)->get_util();
+            if (util <= min_used) {
+                if (util < GC_BLK_THRES) { // direct reclaim
+                    it_candidate = it;
+                    break;
+                }
+                min_used = util;
+                it_candidate = it;
+            }
+        }
+        uint16_t blk_no = *it_candidate;
+        dirty_blocks.erase(it_candidate);
+
+        // murge the condidate block
+        kvssd_block *block = get_block(blk_no);
+        for (uint16_t i = 0; i < page_cnt; i++) {
+            kvssd_page *page = block->get_page(i);
+            for (uint16_t j = 0; j < page->get_active_obj_info(); j++) {
+                if (page->get_obj_state(j) == 1) {
+                    obj_meta obj=page->get_obj_key(j);
+                    kv_key key = {(void *)obj.key.c_str(), (kv_key_t)obj.key.size()};
+                    kv_value value = {NULL, obj.length, 0, 0};
+                    parent->kvssd_ftl_replace(&key, &value, this);
+                }
+            }
+        }
+
+        // finally erase block
+        block->erase();
+        free_blocks.push_back(blk_no);
+    }
+
+
 static kv_timer kv_emul_timer;
 
 kv_emulator::kv_emulator(uint64_t capacity, std::vector<double> iops_model_coefficients, bool_t use_iops_model, uint32_t nsid): stat(iops_model_coefficients), m_capacity(capacity),m_available(capacity), m_use_iops_model(use_iops_model), m_nsid(nsid) {
     memset(m_iterator_list, 0, sizeof(m_iterator_list));
+    //ftl = new kvssd_ftl(1073741824, 1024, 1048576, 4096);
+    uint32_t plane_size = 16777216; // 16 1M blocks
+    ftl = new kvssd_ftl(plane_size, m_capacity/8 / plane_size, 1048576, 4096);
 }
 
 // delete any remaining keys in memory
@@ -64,6 +112,7 @@ kv_emulator::~kv_emulator() {
         it++;
         m_map.erase(it_tmp);
     }
+    delete ftl;
 }
 
 inline kv_key *new_kv_key(const kv_key *key) {
@@ -80,6 +129,7 @@ uint64_t counter = 0;
 
 kv_result kv_emulator::kv_store(const kv_key *key, const kv_value *value, uint8_t option, uint32_t *consumed_bytes, void *ioctx) {
     (void) ioctx;
+
     // track consumed spaced
     if (m_capacity != 0 && m_available < (value->length + key->length)) {
         // fprintf(stderr, "No more device space left\n");
@@ -114,6 +164,9 @@ kv_result kv_emulator::kv_store(const kv_key *key, const kv_value *value, uint8_
             if (m_use_iops_model) {
                 stat.collect(STAT_UPDATE, value->length);
             }
+
+            // ftl ops
+            ftl->kvssd_ftl_update(key, value);
         }
         else {
             kv_key *new_key = new_kv_key(key);
@@ -126,6 +179,9 @@ kv_result kv_emulator::kv_store(const kv_key *key, const kv_value *value, uint8_
             if (m_use_iops_model) {
                 stat.collect(STAT_INSERT, value->length);
             }
+
+            // ftl ops
+            ftl->kvssd_ftl_insert(key, value);
         }
         counter ++;
     }
@@ -262,6 +318,10 @@ kv_result kv_emulator::kv_delete(const kv_key *key, uint8_t option, uint32_t *re
         }
 
         m_map.erase(it);
+
+        // ftl ops
+        ftl->kvssd_ftl_delete(key);
+
         free(key->key);
         delete key;
     } else {
