@@ -41,6 +41,8 @@
 #include <list>
 #include <bitset>
 #include <new>
+#include <thread>
+#include <chrono>
 #include "kvs_adi_internal.h"
 #include "history.hpp"
 
@@ -114,7 +116,8 @@ public:
 #define GC_LOW_WATERMARK 0.4
 #define GC_HIGH_WATERMARK 0.6
 
-#define GC_BLK_THRES 0.3
+#define GC_MIN_BLK_THRES 0.3
+#define GC_LOW_BLK_THRES 0.5
 // record_meta (or chunks meta)
 typedef struct {
     std::string key;
@@ -130,6 +133,45 @@ typedef struct {
     uint8_t obj_idx;
     uint32_t length;
 } kv_index;
+
+
+class kvssd_stats {
+public:
+    // ftl stats
+    uint64_t numFTLRead;
+    uint64_t numFTLWrite;
+    uint64_t numFTLDelete;
+    // flash stats
+    uint64_t numBlockWrite;
+    uint64_t numBlockRead;
+    uint64_t numBlockErase;
+    // GC stats
+    uint64_t numGCBlocks;
+    uint64_t numGC_SYNCBlocks;
+
+public:
+    kvssd_stats() {
+        reset_stats();
+    }
+    void print_stats() {
+        printf("===== kvssd FTL stats =====\n");
+        printf("numFTLRead: %lu,\tnumFTLWrite: %lu,\tnumFTLDelete: %lu\n",
+        numFTLRead, numFTLWrite, numFTLDelete);
+
+        printf("===== kvssd Block stats =====\n");
+        printf("numBlockWrite: %lu,\tnumBlockRead: %lu,\tnumBlockErase: %lu\n",
+        numBlockWrite, numBlockRead, numBlockErase);
+
+        printf("===== kvssd GC stats =====\n");
+        printf("numGCBlocks: %lu,\tnumGC_SYNCBlocks: %lu\n",
+        numGCBlocks, numGC_SYNCBlocks);   
+    }
+    void reset_stats() {
+        numFTLRead = 0; numFTLWrite = 0; numFTLDelete = 0;
+        numBlockWrite = 0; numBlockRead = 0; numBlockErase = 0;
+        numGCBlocks = 0; numGC_SYNCBlocks = 0;
+    }
+};
 
 class kvssd_block;
 class kvssd_plane;
@@ -318,21 +360,8 @@ public:
     kvssd_block* BLAlloc() {return active_block;}
     kvssd_block* get_active_block() {return active_block;}
     kvssd_block* get_block(uint16_t bid) { return &blocks[bid];}
-    kvssd_block* next_active_block (bool affirm) {
-        // TODO: check available block and insert GC if possible
-        get_active_block()->mark_dirty();
-        dirty_blocks.push_back(get_block_id(get_active_block()));
-
-        // check free block first
-        if (free_blocks.size() <= GC_SYNC_WATERMARK && (!affirm)) {
-            reclaim_block_sync();
-        }
-        active_block = &blocks[free_blocks.front()];
-        free_blocks.pop_front();
-        used_blocks++;
-        return active_block;
-    };
-    void reclaim_block();
+    kvssd_block* next_active_block (bool affirm);
+    int reclaim_block();
     void reclaim_block_sync();
     void consume_blocks(uint16_t num_blks, bool affrim) { 
         // consume aligned blocks (for large objects)
@@ -348,6 +377,7 @@ public:
     uint32_t get_id() {return bpid;};
     uint16_t get_block_id(kvssd_block *blk) {return (uint16_t)(blk - blocks);}
     uint32_t get_plane_size() {return block_size*block_cnt;}
+    uint16_t get_used_blocks() {return used_blocks;}
     void write(const kv_key *key, const kv_value *value, bool affirm) {
         uint32_t vlen = value->length;
         kvssd_block *block = get_active_block();
@@ -410,8 +440,8 @@ public:
 class kvssd_ftl {
 private:
     // block arch
-    uint32_t blk_pool_cnt;
-    uint32_t blk_pool_size;
+    uint32_t plane_cnt;
+    uint32_t plane_size;
     uint32_t block_size;
     uint16_t page_size;
     kvssd_plane* planes;
@@ -420,26 +450,48 @@ private:
     std::unordered_map<std::string, kv_index> kv_hash_index;
     std::mutex kv_index_mutex;
 
+    // GC thread
+    pthread_t t_GC;
+
     kvssd_plane* PAlloc() {
         kvssd_plane* ret = &planes[active_pool_id];
          // round robin way (simplified SSD plane allocation)
-        active_pool_id = (active_pool_id + 1) % blk_pool_cnt;
+        active_pool_id = (active_pool_id + 1) % plane_cnt;
         return ret;
     };
     kvssd_plane* get_plane(uint32_t bpid) {return &planes[bpid];};
+    double get_util () {
+        uint32_t used_blocks = 0;
+        for (uint32_t i = 0; i < plane_cnt; i++) {
+            used_blocks += planes[i].get_used_blocks();
+        }
+        return (double)used_blocks *block_size / plane_size / plane_cnt;
+    }
+    void start_GC() {
+        std::thread thrd = std::thread(&kvssd_ftl::GC_bg, this);
+        t_GC = thrd.native_handle();
+        thrd.detach();
+    }
+    void GC_bg();
 
 public:
+    kvssd_stats stats;
     kvssd_ftl(uint32_t bp_size, uint32_t bp_cnt, uint32_t blk_size, uint16_t pg_size) :
-    blk_pool_cnt(bp_cnt), blk_pool_size(bp_size), block_size(blk_size), page_size(pg_size) {
-        planes = (kvssd_plane*)malloc(sizeof(kvssd_plane) * blk_pool_cnt);
-        uint32_t blks_in_pool = (blk_pool_size / block_size);
-        for (uint32_t i = 0; i < blk_pool_cnt; i++) {
+    plane_cnt(bp_cnt), plane_size(bp_size), block_size(blk_size), page_size(pg_size) {
+        planes = (kvssd_plane*)malloc(sizeof(kvssd_plane) * plane_cnt);
+        uint32_t blks_in_pool = (plane_size / block_size);
+        for (uint32_t i = 0; i < plane_cnt; i++) {
             (void) new (&planes[i]) kvssd_plane(this, i, block_size, blks_in_pool, page_size);
         }
         active_pool_id = 0;
+        start_GC();
         printf("kvssd_ftl constructed\n");
     };
-
+    ~kvssd_ftl () {
+        stats.print_stats();
+        free(planes);
+        pthread_cancel(t_GC);
+    }
     // public interface 
     void kvssd_ftl_insert(const kv_key *key, const kv_value *value, kvssd_plane* plane) {
         if (((char *)key->key)[10] == '3' && ((char *)key->key)[11] == '0' && ((char *)key->key)[12] == '9'
@@ -468,6 +520,7 @@ public:
 
             // perform actual write
             plane->write(key, value, false);
+            stats.numFTLWrite++;
         }
     }
 
@@ -475,8 +528,48 @@ public:
         kvssd_ftl_insert(key, value, PAlloc());
     }
     void kvssd_ftl_update(const kv_key *key, const kv_value *value) {
-        kvssd_ftl_delete(key);
-        kvssd_ftl_insert(key, value);
+        // check mapping table, delete entry
+        kv_index kv_idx;
+        {
+            std::unique_lock<std::mutex> lock(kv_index_mutex);
+            std::string s_key = std::string((char *)key->key, key->length);
+            auto it = kv_hash_index.find(s_key);
+            if (it == kv_hash_index.end()) {
+                printf("[kvssd_ftl_update] record not exist\n");
+                exit(0);
+            }
+            else {
+                kv_idx = it->second;
+            }
+        }
+
+        kvssd_plane *plane = get_plane(kv_idx.bpid);
+        uint32_t vlen = value->length;
+        {
+            std::unique_lock<std::mutex> lock(plane->plane_mutex);
+            kv_index kv_idx = plane->get_index(key, vlen, false);
+
+            // hash index entry
+            {
+                std::unique_lock<std::mutex> lock(kv_index_mutex);
+                std::string s_key = std::string((char *)key->key, key->length);
+                auto it = kv_hash_index.find(s_key);
+                if (it == kv_hash_index.end()) {
+                    printf("[kvssd_ftl_update] record not exist\n");
+                    exit(-1);
+                }
+                else {
+                    it->second = kv_idx;
+                }
+            }
+
+            // perform actual write
+            plane->write(key, value, false);
+            stats.numFTLWrite++;
+
+            // delete metadata
+            plane->tombmark(kv_idx);
+        }
     };
     void kvssd_ftl_delete(const kv_key *key) {
         // check mapping table, delete entry
@@ -485,23 +578,37 @@ public:
             std::unique_lock<std::mutex> lock(kv_index_mutex);
             std::string s_key = std::string((char *)key->key, key->length);
             auto it = kv_hash_index.find(s_key);
-            if (it != kv_hash_index.end()) {
-                kv_idx = it->second;
-                kv_hash_index.erase(it);
-            }
-            else {
+            if (it == kv_hash_index.end()) {
                 printf("[kvssd_ftl_delete] record not exist\n");
                 exit(0);
+            }
+            else {
+                kv_idx = it->second;
             }
         }
 
         kvssd_plane *plane = get_plane(kv_idx.bpid);
         {
+            {
+                std::unique_lock<std::mutex> lock(kv_index_mutex);
+                std::string s_key = std::string((char *)key->key, key->length);
+                auto it = kv_hash_index.find(s_key); // double check index, in case GC happens in between
+                if (it != kv_hash_index.end()) {
+                    kv_idx = it->second;
+                    kv_hash_index.erase(it);
+                }
+                else {
+                    printf("[kvssd_ftl_delete] record not exist\n");
+                    exit(0);
+                }
+            }
             std::unique_lock<std::mutex> lock(plane->plane_mutex);
             // delete metadata
             plane->tombmark(kv_idx);
+            
+            stats.numFTLDelete++;
         }
-       
+        
     };
     void kvssd_ftl_replace(const kv_key *key, const kv_value *value, kvssd_plane* plane) {
         
@@ -527,6 +634,7 @@ public:
             // perform actual write
             plane->write(key, value, true);
         }
+        stats.numFTLWrite++;
     }
     void kvssd_ftl_get(const kv_key *key) {}; // don't model kv_get
 

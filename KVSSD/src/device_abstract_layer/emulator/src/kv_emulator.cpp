@@ -46,10 +46,67 @@ namespace kvadi {
 
     uint16_t kvssd_page::get_avail_bytes() {return ((parent->page_size)-tail);};
 
-    void kvssd_plane::reclaim_block() {
+    kvssd_block* kvssd_plane::next_active_block (bool affirm) {
+        // TODO: check available block and insert GC if possible
+        get_active_block()->mark_dirty();
+        dirty_blocks.push_back(get_block_id(get_active_block()));
+
+        // check free block first
+        if (free_blocks.size() <= GC_SYNC_WATERMARK && (!affirm)) {
+            reclaim_block_sync();
+        }
+        active_block = &blocks[free_blocks.front()];
+        free_blocks.pop_front();
+        used_blocks++;
+        parent->stats.numBlockWrite++;
+        return active_block;
+    };
+
+    int kvssd_plane::reclaim_block() {
         // block the plane
         std::unique_lock<std::mutex> lock(plane_mutex);
-        reclaim_block_sync();
+        // find candidate block
+        double min_used = 1;
+        std::list<uint16_t>::iterator it_candidate;
+        for (auto it = dirty_blocks.begin(); it!=dirty_blocks.end(); ++it) {
+            double util = get_block(*it)->get_util();
+            if (util <= min_used) {
+                if (util < GC_MIN_BLK_THRES) { // direct reclaim
+                    min_used = util;
+                    it_candidate = it;
+                    break;
+                }
+                min_used = util;
+                it_candidate = it;
+            }
+        }
+        if (min_used > GC_LOW_BLK_THRES) {
+            return 0;
+        }
+        uint16_t blk_no = *it_candidate;
+        dirty_blocks.erase(it_candidate);
+
+        // murge the condidate block
+        kvssd_block *block = get_block(blk_no);
+        for (uint16_t i = 0; i < page_cnt; i++) {
+            kvssd_page *page = block->get_page(i);
+            for (uint16_t j = 0; j < page->get_active_obj_info(); j++) {
+                if (page->get_obj_state(j) == 1) {
+                    obj_meta obj=page->get_obj_key(j);
+                    kv_key key = {(void *)obj.key.c_str(), (kv_key_t)obj.key.size()};
+                    kv_value value = {NULL, obj.length, 0, 0};
+                    parent->kvssd_ftl_replace(&key, &value, this);
+                }
+            }
+        }
+
+        // finally erase block
+        block->erase();
+        parent->stats.numBlockErase++;
+        free_blocks.push_back(blk_no);
+        used_blocks--;
+        parent->stats.numGCBlocks++;
+        return 1;
     }
     void kvssd_plane::reclaim_block_sync() {
         // find candidate block
@@ -58,7 +115,7 @@ namespace kvadi {
         for (auto it = dirty_blocks.begin(); it!=dirty_blocks.end(); ++it) {
             double util = get_block(*it)->get_util();
             if (util <= min_used) {
-                if (util < GC_BLK_THRES) { // direct reclaim
+                if (util < GC_MIN_BLK_THRES) { // direct reclaim
                     it_candidate = it;
                     break;
                 }
@@ -85,7 +142,40 @@ namespace kvadi {
 
         // finally erase block
         block->erase();
+        parent->stats.numBlockErase++;
         free_blocks.push_back(blk_no);
+        used_blocks--;
+        parent->stats.numGC_SYNCBlocks++;
+    }
+
+    void kvssd_ftl::GC_bg() {
+        static uint64_t timestamp = 0;
+        while(true) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            timestamp++;
+            double remain = 1-get_util();
+            if (remain < GC_LOW_WATERMARK) { // keep reclaim
+                while (true) {
+                    int num_reclaim = 0;
+                    if (remain >=  GC_HIGH_WATERMARK) {
+                        break;
+                    }
+                    else {
+                        for (uint16_t i = 0 ; i < plane_cnt; i++) {
+                            num_reclaim += planes[i].reclaim_block();
+                        }
+                    }
+                    if (num_reclaim == 0) { // nothing to reclaim
+                        break;
+                    }
+                    //printf("[TS %lu] reclaim %d blocks\n",timestamp, num_reclaim);
+                }
+            }
+            else { // > LOW_WATERMARK no need to reclaim
+                continue;
+            }
+            
+        }
     }
 
 
