@@ -44,6 +44,28 @@ uint64_t _kv_emul_queue_latency;
 
 namespace kvadi {
 
+    void kvssd_stats::print_stats() {
+        printf("===== kvssd FTL stats =====\n");
+        printf("FTLReadBytes: %lu,\tnumFTLWrite: %lu\n\n",
+        FTLReadBytes, FTLWriteBytes);
+
+        printf("===== kvssd Block stats =====\n");
+        printf("numBlockWrite: %lu,\tnumBlockRead: %lu,\tnumBlockErase: %lu\n\n",
+        numBlockWrite, numBlockRead, numBlockErase);
+
+        printf("===== kvssd GC stats =====\n");
+        printf("numGCBlocks: %lu,\tnumGC_SYNCBlocks: %lu\n\n",
+        numGCBlocks, numGC_SYNCBlocks);   
+        // count OOB area
+        printf("Internal WAF: %.3f\n", (double) (4096+128)/4096 * ftl->get_block_size() * numBlockWrite / FTLWriteBytes);
+    }
+
+    void kvssd_stats::reset_stats() {
+        FTLReadBytes = 0; FTLWriteBytes = 0; 
+        numBlockWrite = ftl->get_plane_cnt(); numBlockRead = 0; numBlockErase = 0;
+        numGCBlocks = 0; numGC_SYNCBlocks = 0;
+    }
+
     uint16_t kvssd_page::get_avail_bytes() {return ((parent->page_size)-tail);};
 
     kvssd_block* kvssd_plane::next_active_block (bool affirm) {
@@ -51,14 +73,17 @@ namespace kvadi {
         get_active_block()->mark_dirty();
         dirty_blocks.push_back(get_block_id(get_active_block()));
 
-        // check free block first
-        if (free_blocks.size() <= GC_SYNC_WATERMARK && (!affirm)) {
-            reclaim_block_sync();
-        }
+        // must exist free block, since we will sync reclaim when hit min watermark
         active_block = &blocks[free_blocks.front()];
         free_blocks.pop_front();
         used_blocks++;
         parent->stats.numBlockWrite++;
+
+        // hit min watermark, sync reclaim
+        while (free_blocks.size() <= GC_SYNC_WATERMARK && (!affirm)) {
+            reclaim_block_sync();
+        }
+
         return active_block;
     };
 
@@ -185,7 +210,7 @@ kv_emulator::kv_emulator(uint64_t capacity, std::vector<double> iops_model_coeff
     memset(m_iterator_list, 0, sizeof(m_iterator_list));
     //ftl = new kvssd_ftl(1073741824, 1024, 1048576, 4096);
     uint32_t plane_size = 16777216; // 16 1M blocks
-    ftl = new kvssd_ftl(plane_size, m_capacity/8 / plane_size, 1048576, 4096);
+    ftl = new kvssd_ftl(plane_size, m_capacity /8/ plane_size, 1048576, 4096);
 }
 
 // delete any remaining keys in memory
