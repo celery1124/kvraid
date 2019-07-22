@@ -210,7 +210,7 @@ kv_emulator::kv_emulator(uint64_t capacity, std::vector<double> iops_model_coeff
     memset(m_iterator_list, 0, sizeof(m_iterator_list));
     //ftl = new kvssd_ftl(1073741824, 1024, 1048576, 4096);
     uint32_t plane_size = 16777216; // 16 1M blocks
-    ftl = new kvssd_ftl(plane_size, m_capacity /8/ plane_size, 1048576, 4096);
+    ftl = new kvssd_ftl(plane_size, m_capacity / plane_size, 1048576, 4096);
 }
 
 // delete any remaining keys in memory

@@ -486,10 +486,11 @@ public:
     uint32_t get_plane_cnt() {return plane_cnt;}
     // public interface 
     void kvssd_ftl_insert(const kv_key *key, const kv_value *value, kvssd_plane* plane) {
-        // if (((char *)key->key)[10] == '3' && ((char *)key->key)[11] == '0' && ((char *)key->key)[12] == '9'
-        // &&((char *)key->key)[13] == '2' && ((char *)key->key)[14] == '3')
+        // if (((char *)key->key)[10] == '9' && ((char *)key->key)[11] == '9' && 
+        // ((char *)key->key)[12] == '7' &&((char *)key->key)[13] == '0' && 
+        // ((char *)key->key)[14] == '4')
         // {
-        //     printf("30923\n");
+        //     printf("99704\n");
         // }
         //printf("insert key = %s\n",(char*)key->key);
         uint32_t vlen = value->length;
@@ -521,12 +522,12 @@ public:
         kvssd_ftl_insert(key, value, PAlloc());
     }
     void kvssd_ftl_update(const kv_key *key, const kv_value *value) {
-        if (((char *)key->key)[10] == '5' && ((char *)key->key)[11] == '7' && 
-        ((char *)key->key)[12] == '3' &&((char *)key->key)[13] == '0' && 
-        ((char *)key->key)[14] == '7')
-        {
-            printf("57307\n");
-        }
+        // if (((char *)key->key)[10] == '5' && ((char *)key->key)[11] == '7' && 
+        // ((char *)key->key)[12] == '3' &&((char *)key->key)[13] == '0' && 
+        // ((char *)key->key)[14] == '7')
+        // {
+        //     printf("57307\n");
+        // }
         //printf("update key = %s\n",(char*)key->key);
         // check mapping table, delete entry
         kv_index old_kv_idx;
