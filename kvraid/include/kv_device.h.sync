@@ -1,0 +1,161 @@
+/* kv_device.h
+* 07/13/2017
+* by Mian Qin
+*/
+
+#ifndef   _kv_device_h_   
+#define   _kv_device_h_   
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <kvs_api.h>
+#include "threadpool.h"
+
+#define MAX_VAL_SIZE 8192
+#define MAX_KEY_LEN 16
+
+class phy_key
+{
+public:
+	uint64_t phykey;
+    char c_key[MAX_KEY_LEN];
+
+	phy_key(){memset(c_key,0,MAX_KEY_LEN);}
+
+	phy_key(uint64_t slab_id, uint64_t seq) {
+		uint64_t tmp = slab_id;
+        memset(c_key,0,MAX_KEY_LEN);
+		phykey = (seq & 0x00FFFFFFFFFFFFFF) | (tmp << 56);
+        sprintf(c_key, "%015lX", phykey);
+	}
+
+	void init(int slab_id, uint64_t seq) {
+		uint64_t tmp = slab_id;
+        memset(c_key,0,MAX_KEY_LEN);
+		phykey = (seq & 0x00FFFFFFFFFFFFFF) | (tmp << 56);
+        sprintf(c_key, "%015lX", phykey);
+	}
+
+	int get_slab_id() {
+		return ((phykey >> 56) & 0xff);
+	}
+
+    uint8_t get_klen() {
+		return MAX_KEY_LEN;
+	}
+
+	uint64_t get_seq() {
+		return (phykey & 0x00FFFFFFFFFFFFFF);
+	}
+};
+inline bool operator==(const phy_key& lk, const phy_key& hk){
+    return lk.phykey == hk.phykey;
+}
+inline bool operator!=(const phy_key& lk, const phy_key& hk){
+    return lk.phykey != hk.phykey;
+}
+
+class phy_val {
+public:
+    char *c_val;
+    uint32_t val_len;
+    uint32_t actual_len;
+    phy_val(){};
+    phy_val (char *c, int len):
+        c_val(c), val_len(len), actual_len(0) {};
+    phy_val (phy_val* pval) :
+        c_val(pval->c_val), val_len(pval->val_len), actual_len(pval->actual_len) {};
+};
+
+enum KVD_OPS {
+    KVD_STORE,
+    KVD_DELETE,
+    KVD_GET
+};
+
+class KV_DEVICE; // forward declaration
+typedef struct {
+    KVD_OPS ops; // 0-insert, 1-update, 2-delete, 3-get
+	phy_key* key;
+    phy_val* value;
+    void (*callback)(void *);
+    void *argument;
+    KV_DEVICE *dev;
+} dev_io_context;
+
+static void io_task(void *arg);
+
+typedef struct {
+    uint32_t num_store;
+    uint32_t num_retrieve;
+    uint32_t num_delete;
+    uint32_t util;
+} kvs_stats;
+
+class KV_DEVICE
+{
+public:
+    int dev_id;
+    // kvssd
+    char kvs_dev_path[32];
+    kvs_init_options options;
+    kvs_device_handle dev;
+    kvs_container_context ctx;
+    kvs_container_handle cont_handle;
+
+    // stats
+    // uint32_t capacity; //MB
+    // kvs_stats stats;
+
+    // req queue (using thread pool)
+    threadpool_t *pool;
+    int io_queue_depth;
+    sem_t q_sem;
+
+    KV_DEVICE(int id, char* dev_path, int thread_count, int queue_depth): 
+        dev_id(id), io_queue_depth(queue_depth) {
+        //stats
+        // stats = { 0, 0, 0 };
+        // capacity = kvs_get_device_capacity(dev)/1024/1024;
+
+        memset(kvs_dev_path, 0, 32);
+        memcpy(kvs_dev_path, dev_path, strlen(dev_path));
+        kvs_init_env_opts(&options);
+        options.memory.use_dpdk = 0;
+        // options for asynchronized call
+        options.aio.iocoremask = 0;
+        options.aio.queuedepth = 64;
+        const char *configfile = "kvssd_emul.conf";
+        options.emul_config_file =  configfile;
+        kvs_init_env(&options);
+
+        kvs_open_device(dev_path, &dev);
+        kvs_create_container(dev, "test", 4, &ctx);
+        kvs_open_container(dev, "test", &cont_handle);
+
+        pool = threadpool_create(thread_count, queue_depth, 0, &q_sem);
+        sem_init(&q_sem, 0, queue_depth);
+    }
+    ~KV_DEVICE() {
+        threadpool_destroy(pool, 1);
+        sem_destroy(&q_sem);
+    };
+
+    
+	bool kv_store(phy_key *key, phy_val *value);
+	bool kv_delete(phy_key *key);
+	bool kv_get(phy_key *key, phy_val *value);
+    
+    bool kv_astore(phy_key *key, phy_val *value, void (*callback)(void *), void *argument);
+	bool kv_adelete(phy_key *key, void (*callback)(void *), void *argument);
+    bool kv_aget(phy_key *key, phy_val *value, void (*callback)(void *), void *argument);
+
+    int64_t get_capacity();
+    double get_util();
+    float get_waf();
+    
+};
+
+
+#endif
