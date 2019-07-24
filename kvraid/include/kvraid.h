@@ -116,8 +116,7 @@ private:
     char **code_;
     // seq generator
     uint64_t seq_; // monotonous for recovery
-    std::queue<uint64_t> avail_seq_;  // seq before trim
-    std::queue<uint64_t> trimed_seq_; // seq after trim
+    std::queue<uint64_t> delete_seq_;  // seq before trim
     std::mutex seq_mutex_;
 
     int num_pq_;
@@ -175,11 +174,10 @@ public:
         delete [] code_;
     }
     void processQ();
-    void get_avail_ids(std::vector<uint64_t>& groups, int trim_num);
-    void add_avail_ids(std::vector<uint64_t>& groups);
-    void add_trimed_ids(std::vector<uint64_t>& groups);
-    uint64_t get_group_id();
-    void add_group_id(uint64_t group_id);
+    void get_delete_ids(std::vector<uint64_t>& groups, int trim_num);
+    void add_delete_ids(std::vector<uint64_t>& groups);
+    void add_delete_id(uint64_t group_id);
+    uint64_t get_new_group_id();
     bool track_finish(int id, int num_ios);
     void dq_insert(uint64_t index);
     int dq_size() {return delete_q.size();}
@@ -295,6 +293,9 @@ public:
 	bool kvr_update(kvr_key *key, kvr_value *value);
     bool kvr_delete(kvr_key *key);
 	bool kvr_get(kvr_key *key, kvr_value *value);
+
+    
+    bool kvr_write_batch(WriteBatch *batch);
     // void kvr_stats(double &slab_overhead, double &occup_capacity, double &invalid_capacity);
     // void kvr_gc_stats(double &gc_efficiency);
 };

@@ -238,6 +238,8 @@ public:
 	bool kvr_update(kvr_key *key, kvr_value *value);
     bool kvr_delete(kvr_key *key);
 	bool kvr_get(kvr_key *key, kvr_value *value);
+
+    bool kvr_write_batch(WriteBatch *batch);
 };
 
 } // end namespace kvec

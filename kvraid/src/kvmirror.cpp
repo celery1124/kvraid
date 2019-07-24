@@ -114,6 +114,9 @@ bool KVMirror::kvr_get(kvr_key *key, kvr_value *value) {
     return true;
 }
 
+bool KVMirror::kvr_write_batch(WriteBatch *batch) {
+    printf("NOT IMPLEMENT\n");
+}
 
 } // end namespace kvmirror
 

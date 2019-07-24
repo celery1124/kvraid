@@ -16,59 +16,40 @@
 
 namespace kvraid {
 
-void SlabQ::get_avail_ids(std::vector<uint64_t>& groups, int trim_num) {
+void SlabQ::get_delete_ids(std::vector<uint64_t>& groups, int trim_num) {
     {
         std::unique_lock<std::mutex> lock(seq_mutex_);
-        while (!avail_seq_.empty() && trim_num > 0) {
-            groups.push_back(avail_seq_.front());
-            avail_seq_.pop();
+        while (!delete_seq_.empty() && trim_num > 0) {
+            groups.push_back(delete_seq_.front());
+            delete_seq_.pop();
             trim_num--;
         }
     }
 }
 
-void SlabQ::add_avail_ids(std::vector<uint64_t>& groups) {
+void SlabQ::add_delete_ids(std::vector<uint64_t>& groups) {
     {
         std::unique_lock<std::mutex> lock(seq_mutex_);
         for (auto it=groups.begin(); it!=groups.end(); ++it) {
-            avail_seq_.push(*it);
+            delete_seq_.push(*it);
         }
     }
 }
 
-void SlabQ::add_trimed_ids(std::vector<uint64_t>& groups) {
-    {
-        std::unique_lock<std::mutex> lock(seq_mutex_);
-        for (auto it=groups.begin(); it!=groups.end(); ++it) {
-            trimed_seq_.push(*it);
-        }
-    }
-}
-
-uint64_t SlabQ::get_group_id() {
+uint64_t SlabQ::get_new_group_id() {
     uint64_t ret;
     {
         std::unique_lock<std::mutex> lock(seq_mutex_);
-        if (!trimed_seq_.empty()) {
-            ret = trimed_seq_.front();
-            trimed_seq_.pop();
-        }
-        else if (!avail_seq_.empty()) {
-            ret = avail_seq_.front();
-            avail_seq_.pop();
-        }
-        else {
-            ret = seq_;
-            seq_++;
-        }
+        ret = seq_;
+        seq_++;
     }
     return ret;
 }
 
-void SlabQ::add_group_id(uint64_t group_id) {
+void SlabQ::add_delete_id(uint64_t group_id) {
     {
         std::unique_lock<std::mutex> lock(seq_mutex_);
-        avail_seq_.push(group_id);
+        delete_seq_.push(group_id);
     }
 }
 
@@ -95,7 +76,7 @@ void DeleteQ::insert(uint64_t index) {
         // if whole group is updated, put to trim list
         if (group_list_[group_id].size() == (k_ - 1)) {
             group_list_.erase(group_id);
-            parent_->add_group_id(group_id);
+            parent_->add_delete_id(group_id);
             count_ -= (k_-1);
         }
         else {
@@ -242,7 +223,7 @@ void SlabQ::processQ() {
         // clean buffer
         //printf("======clean buffer======\n");
         clear_data_buf();
-        uint64_t group_id = get_group_id();
+        uint64_t group_id = get_new_group_id();
         int dev_idx_start = group_id%(k_+r_);
         int dev_idx;
         int total_count = 0;
@@ -364,7 +345,7 @@ void SlabQ::dq_insert(uint64_t index) {
 void KVRaid::DoTrim(int slab_id) {
     std::vector<uint64_t> groups;
     SlabQ *slab = &slabs_[slab_id];
-    slab->get_avail_ids(groups, MAX_TRIM_NUM);
+    slab->get_delete_ids(groups, MAX_TRIM_NUM);
 
     int group_size = k_+r_;
     for (auto it = groups.begin(); it != groups.end(); ++it) {
@@ -380,8 +361,6 @@ void KVRaid::DoTrim(int slab_id) {
         }
     }
 
-    // add back seq num
-    slab->add_trimed_ids(groups);
 
     data_volume_.fetch_sub(slab_list_[slab_id]*groups.size()*(k_+r_), std::memory_order_relaxed);
 }
@@ -461,8 +440,8 @@ void KVRaid::DoReclaim(int slab_id) {
         delete kvr_ctx_vec[i];
     }
 
-    // release phy key
-    slab->add_avail_ids(groups);    
+    // release phy key (for trim)
+    slab->add_delete_ids(groups);    
 }
 
 bool KVRaid::CheckGCTrigger(int slab_id) {
@@ -615,6 +594,38 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
 
     return true;
 }
+
+
+
+bool KVRaid::kvr_write_batch(WriteBatch *batch) {
+    std::vector<kvr_context*> kvr_ctx_vec;
+    for (auto it = batch->list_.begin(); it != batch->list_.end(); ++it) {
+        kvr_key *key = it->key;
+        kvr_value *value = it->val;
+        uint32_t actual_vlen = key->length + value->length + KEY_SIZE_BYTES;
+        int slab_id = kvr_get_slab_id(actual_vlen);
+        SlabQ *slab = &slabs_[slab_id];
+
+        // generate new value 
+        char *pack_val = (char*)malloc(actual_vlen);
+        pack_value(pack_val, key, value);
+        kvr_value new_value = {pack_val, actual_vlen};
+
+        // write to the context queue
+        kvr_context *kvr_ctx = new kvr_context(KVR_OPS(it->type), key, &new_value);
+        kvr_ctx_vec.push_back(kvr_ctx);
+        slab->q.enqueue(kvr_ctx);
+    }
+
+    // wait util whole batch is done
+    for (auto it = kvr_ctx_vec.begin(); it != kvr_ctx_vec.end(); ++it) {
+        std::unique_lock<std::mutex> lck((*it)->mtx);
+        while (!(*it)->ready) (*it)->cv.wait(lck);
+        delete (*it);
+    }
+
+}
+
 
 } // end namespace kvraid
 

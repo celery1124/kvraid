@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include "kvr_api.h"
+#include "kv_writebatch.h"
 #include "kv_device.h"
 #include "mapping_table.h"
 
@@ -21,6 +22,8 @@ public:
 	virtual bool kvr_update(kvr_key *key, kvr_value *value) = 0;
     virtual bool kvr_delete(kvr_key *key) = 0;
 	virtual bool kvr_get(kvr_key *key, kvr_value *value) = 0;
+
+    virtual bool kvr_write_batch(WriteBatch *batch) = 0;
 };
 
 KVR* NewKVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t);

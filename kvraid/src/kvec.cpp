@@ -361,6 +361,11 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
     return true;
 }
 
+
+bool KVEC::kvr_write_batch(WriteBatch *batch) {
+    printf("NOT IMPLEMENT\n");
+}
+
 } // end namespace kvec
 
 KVR *NewKVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) {

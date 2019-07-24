@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <unistd.h>
 #include <thread>
+
+#include "kv_writebatch.h"
 #include "kvraid.h"
 
 #define thread_cnt 1
@@ -109,6 +111,34 @@ void load(KVRaid *kvr, int num, bool seq, int tid) {
     }
 }
 
+void batch_load(KVRaid *kvr, int num, int batch_size, bool seq, int tid) {
+  RandomGenerator gen;
+  Random rand(0);
+  WriteBatch batch;
+  for (int i = 0; i < num/batch_size; i++) {
+    for (int j = 0; j < batch_size; j++) {
+      const int k = seq ? i + tid*num : (rand.Next() % num) + tid*num;
+      char *key = new char[100];
+      snprintf(key, sizeof(key), "%016d", k);
+      //char *value = gen.Generate(OBJ_LEN);
+      char *value = new char[OBJ_LEN];
+
+
+      kvr_key *keys = new kvr_key;
+      kvr_value *vals = new kvr_value;
+      keys->key =key;
+      keys->length = 16;
+      vals->val = value;
+      vals->length = OBJ_LEN;
+
+      batch.Put(keys, vals, 0);
+    }
+    kvr->kvr_write_batch(&batch);
+    batch.Clear();
+    printf("load batch %d\n", i);
+  }
+}
+
 void update(KVRaid *kvr, int num, bool seq, int tid) {
   RandomGenerator gen;
   Random rand(0);
@@ -180,6 +210,8 @@ int main() {
     }
 
     read(&kvr, 1000);
+
+    batch_load(&kvr, 1000, 10, false, 0);
 
     sleep(100);
 
