@@ -241,9 +241,52 @@ public:
 
     bool kvr_write_batch(WriteBatch *batch);
 
+    class KVECIterator : public Iterator {
+    private:
+        KVEC *kvr_;
+        MapIterator *it_;
+        std::string curr_key_;
+        std::string curr_val_;
+        bool val_retrieved_;
+    public:
+        KVECIterator(KVEC *kvr) : kvr_(kvr), val_retrieved_(false) {
+            it_ = kvr_->key_map_->NewMapIterator();
+        }
+        ~KVECIterator() {}
+        void Seek(kvr_key &key) {
+            std::string seekkey(key.key, key.length);
+            it_->Seek(seekkey);
+            val_retrieved_ = false;
+            if (it_->Valid()) 
+                curr_key_ = it_->Key();
+        }
+        void SeekToFirst() {
+            it_->SeekToFirst();
+            val_retrieved_ = false;
+            if (it_->Valid())
+                curr_key_ = it_->Key();
+        }
+        void Next() {
+            it_->Next();
+            val_retrieved_ = false;
+            if (it_->Valid())
+                curr_key_ = it_->Key();
+        }
+        bool Valid() {return it_->Valid();}
+        kvr_key Key() {
+            return {(char *)curr_key_.data(), curr_key_.size()};
+        }
+        kvr_value Value() {
+            if (!val_retrieved_) {
+                retrieveValue(it_->Key().size(), it_->Value(), curr_val_);
+                val_retrieved_ = true;
+            }
+            return {(char *)curr_val_.data(), curr_val_.size()};
+        }
+        void retrieveValue(int userkey_len, std::string &retrieveKey, std::string &value);
+    };
     Iterator* NewIterator() {
-        printf("NOT IMPLEMENT\n");
-        return NULL;
+        return new KVECIterator(this);
     }
 };
 

@@ -349,7 +349,8 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
 
     int slab_id = pkey.get_slab_id();
     int seq = pkey.get_seq();
-    int dev_idx = (((seq/k_) % (k_+r_)) + seq%k_) % (k_+r_);
+    // careful, different dev_idx mapping to KVRaid
+    int dev_idx = (((seq/k_) % (k_+r_)) + seq%k_) % (k_+r_); 
 
 
     value->val = (char*)malloc(slab_list_[slab_id]);
@@ -365,6 +366,29 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
 bool KVEC::kvr_write_batch(WriteBatch *batch) {
     printf("NOT IMPLEMENT\n");
 }
+
+void KVEC::KVECIterator::retrieveValue(int userkey_len, std::string &retrieveKey, std::string &value) {
+    int k_ = kvr_->k_;
+    int r_ = kvr_->r_;
+    int *slab_list_ = kvr_->slab_list_;
+    KV_DEVICE *ssds_ = kvr_->ssds_;
+    phy_key pkey;
+    pkey.decode(&retrieveKey);
+    
+    int slab_id = pkey.get_slab_id();
+    int seq = pkey.get_seq();
+    int dev_idx = ((seq/k_ % (k_+r_)) + seq%k_) % (k_+r_);
+
+    char *actual_val = (char*)malloc(slab_list_[slab_id]);
+    phy_val pval(actual_val, slab_list_[slab_id]);
+    //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
+    ssds_[dev_idx].kv_get(&pkey, &pval);
+
+    value.clear();
+    value.append(actual_val, pval.actual_len);
+    free(actual_val);
+}
+
 
 } // end namespace kvec
 

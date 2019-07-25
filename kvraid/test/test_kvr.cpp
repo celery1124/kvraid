@@ -189,8 +189,8 @@ int main() {
       (void) new (&kvs_conts[i]) KVS_CONT("/dev/kvemul", 64);
     }
     KVR *kvr;
-    kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
+    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
     std::thread *th_load[16];
