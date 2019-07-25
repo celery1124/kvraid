@@ -157,6 +157,27 @@ void get(KVR *kvr, int num, int tid) {
     delete [] vals;
 }
 
+void seek (KVR *kvr, int skey) {
+  Iterator *it = kvr->NewIterator();
+  kvr_key seekkey;
+  char key[100];
+  snprintf(key, sizeof(key), "%016d", skey);
+
+  seekkey.key =key;
+  seekkey.length = 16;
+  it->Seek(seekkey);
+  for (int i = 0; i < 10; i++) {
+    if (it->Valid()) {
+      std::string k(it->Key().key, it->Key().length);
+      std::string v(it->Value().val, 8);
+      printf("key %s, value: %s\n", k.c_str(), v.c_str());
+      it->Next();
+    }
+    else break;
+  }
+  delete it;
+}
+
 int main() {
     int num_ssds = 5;
     int k = 3, r = 2;
@@ -185,6 +206,9 @@ int main() {
 
     printf("finish load\n\n");
 
+    seek(kvr, 2019);
+    printf("finish iteraotr test\n\n");
+
     for (int i = 0; i< thread_cnt; i++) {
         th_update[i] = new std::thread(update, kvr, 100 , false, i);
     }
@@ -203,7 +227,10 @@ int main() {
         th_get[i]->join();
     }
 
-    //get(kvr, 1000);
+    printf("finish get\n\n");
+
+    seek(kvr, 2019);
+    printf("finish iteraotr test\n\n");
 
     sleep(3);
 

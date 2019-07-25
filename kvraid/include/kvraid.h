@@ -190,6 +190,7 @@ public:
     }
 };
 
+
 class KVRaid : public KVR {
     friend class SlabQ;
 private:
@@ -298,6 +299,55 @@ public:
     bool kvr_write_batch(WriteBatch *batch);
     // void kvr_stats(double &slab_overhead, double &occup_capacity, double &invalid_capacity);
     // void kvr_gc_stats(double &gc_efficiency);
+
+public:
+    class KVRaidIterator : public Iterator {
+    private:
+        KVRaid *kvr_;
+        MapIterator *it_;
+        std::string curr_key_;
+        std::string curr_val_;
+        bool val_retrieved_;
+    public:
+        KVRaidIterator(KVRaid *kvr) : kvr_(kvr), val_retrieved_(false) {
+            it_ = kvr_->key_map_->NewMapIterator();
+        }
+        ~KVRaidIterator() {}
+        void Seek(kvr_key &key) {
+            std::string seekkey(key.key, key.length);
+            it_->Seek(seekkey);
+            val_retrieved_ = false;
+            if (it_->Valid()) 
+                curr_key_ = it_->Key();
+        }
+        void SeekToFirst() {
+            it_->SeekToFirst();
+            val_retrieved_ = false;
+            if (it_->Valid())
+                curr_key_ = it_->Key();
+        }
+        void Next() {
+            it_->Next();
+            val_retrieved_ = false;
+            if (it_->Valid())
+                curr_key_ = it_->Key();
+        }
+        bool Valid() {return it_->Valid();}
+        kvr_key Key() {
+            return {(char *)curr_key_.data(), curr_key_.size()};
+        }
+        kvr_value Value() {
+            if (!val_retrieved_) {
+                retrieveValue(it_->Key().size(), it_->Value(), curr_val_);
+                val_retrieved_ = true;
+            }
+            return {(char *)curr_val_.data(), curr_val_.size()};
+        }
+        void retrieveValue(int userkey_len, std::string &retrieveKey, std::string &value);
+    };
+    Iterator* NewIterator() {
+        return new KVRaidIterator(this);
+    }
 };
 
 } // end namespace kvraid

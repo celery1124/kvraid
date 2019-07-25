@@ -240,6 +240,11 @@ public:
 	bool kvr_get(kvr_key *key, kvr_value *value);
 
     bool kvr_write_batch(WriteBatch *batch);
+
+    Iterator* NewIterator() {
+        printf("NOT IMPLEMENT\n");
+        return NULL;
+    }
 };
 
 } // end namespace kvec

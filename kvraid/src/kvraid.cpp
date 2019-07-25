@@ -609,10 +609,10 @@ bool KVRaid::kvr_write_batch(WriteBatch *batch) {
         // generate new value 
         char *pack_val = (char*)malloc(actual_vlen);
         pack_value(pack_val, key, value);
-        kvr_value new_value = {pack_val, actual_vlen};
+        kvr_value *new_value = new kvr_value{pack_val, actual_vlen};
 
         // write to the context queue
-        kvr_context *kvr_ctx = new kvr_context(KVR_OPS(it->type), key, &new_value);
+        kvr_context *kvr_ctx = new kvr_context(KVR_OPS(it->type), key, new_value);
         kvr_ctx_vec.push_back(kvr_ctx);
         slab->q.enqueue(kvr_ctx);
     }
@@ -621,9 +621,37 @@ bool KVRaid::kvr_write_batch(WriteBatch *batch) {
     for (auto it = kvr_ctx_vec.begin(); it != kvr_ctx_vec.end(); ++it) {
         std::unique_lock<std::mutex> lck((*it)->mtx);
         while (!(*it)->ready) (*it)->cv.wait(lck);
+        free((*it)->value->val); // pack_val
+        delete (*it)->value;
         delete (*it);
     }
 
+}
+
+
+void KVRaid::KVRaidIterator::retrieveValue(int userkey_len, std::string &retrieveKey, std::string &value) {
+    int k_ = kvr_->k_;
+    int r_ = kvr_->r_;
+    int *slab_list_ = kvr_->slab_list_;
+    KV_DEVICE *ssds_ = kvr_->ssds_;
+    phy_key pkey;
+    pkey.decode(&retrieveKey);
+    
+    int slab_id = pkey.get_slab_id();
+    int seq = pkey.get_seq();
+    int dev_idx = ((seq/(k_+r_) % (k_+r_)) + seq%(k_+r_)) % (k_+r_);
+
+    char *actual_val = (char*)malloc(slab_list_[slab_id]);
+    phy_val pval(actual_val, slab_list_[slab_id]);
+    //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
+    ssds_[dev_idx].kv_get(&pkey, &pval);
+
+    kvr_value new_val;
+    unpack_value(pval.c_val, pval.actual_len, NULL, &new_val);
+
+    value.clear();
+    value.append(actual_val+userkey_len+KEY_SIZE_BYTES, new_val.length);
+    free(actual_val);
 }
 
 

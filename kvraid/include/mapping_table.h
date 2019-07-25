@@ -16,6 +16,18 @@ typedef enum {
     Storage
 } MetaType;
 
+class MapIterator {
+public:
+    MapIterator() {};
+    virtual ~MapIterator() {};
+    virtual void Seek(std::string &key) = 0;
+    virtual void SeekToFirst() = 0;
+    virtual void Next() = 0;
+    virtual bool Valid() = 0;
+    virtual std::string& Key() = 0;
+    virtual std::string& Value() = 0;
+};
+
 class Map {
 public:
     Map() {};
@@ -26,6 +38,8 @@ public:
     virtual void insert(std::string* key, phy_key* val) = 0;
     virtual void update(std::string* key, phy_key* val) = 0;
     virtual void erase(std::string* key) = 0;
+
+    virtual MapIterator* NewMapIterator() = 0;
 };
 
 Map* NewMemMap();
