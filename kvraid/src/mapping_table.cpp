@@ -29,7 +29,7 @@ public:
         void Seek(std::string &key) {
             std::unique_lock<std::mutex> lock(map_->mutex_);
             it_ = map_->key_map_.find(key);
-            if (Valid()) {
+            if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
             }
@@ -37,7 +37,7 @@ public:
         void SeekToFirst() {
             std::unique_lock<std::mutex> lock(map_->mutex_);
             it_ = map_->key_map_.begin();
-            if (Valid()) {
+            if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
             }
@@ -45,7 +45,7 @@ public:
         void Next() {
             std::unique_lock<std::mutex> lock(map_->mutex_);
             ++it_;
-            if (Valid()) {
+            if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
             }
