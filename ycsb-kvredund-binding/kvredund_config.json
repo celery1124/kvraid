@@ -1,0 +1,11 @@
+{
+	"num_data_nodes":4,
+	"num_code_nodes":2,
+	"slab_list":[500,600,700,800,900,1000,1100,1200],
+	"kvr_type":0,
+	"meta_type":0,
+	"batch_size":10 
+}
+
+
+
