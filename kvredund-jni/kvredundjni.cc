@@ -29,7 +29,8 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
                        (std::istreambuf_iterator<char>()    ) );
     std::string err;
     if (file_content.size() == 0) { // default jason
-        file_content = R"({"num_data_nodes":4, "num_code_nodes":2, 
+        file_content = R"({"dev_mode":0,
+        "num_data_nodes":4, "num_code_nodes":2, 
         "kvr_type":0, "meta_type":0, "slab_list":[256,512,768,1024,1280],
         "batch_Size":6})";
         printf("Using default kvredund config file\n");
@@ -37,6 +38,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
 
     // parse json
     const auto config = json11::Json::parse(file_content, err);
+    int dev_mode = config["dev_mode"].int_value();
 	int k = config["num_data_nodes"].int_value();
 	int r = config["num_code_nodes"].int_value();
     int kvr_type = config["kvr_type"].int_value();
@@ -52,8 +54,14 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     int num_ssds = k+r;
 	kv_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
     for (int i = 0; i < num_ssds; i++) {
-        (void) new (&kv_conts[i]) KVS_CONT("/dev/kvemul", 64);
-        printf("[dev %d] opened\n",i);
+        std::string dev_name;
+        if (dev_mode == 0) {
+            dev_name = "/dev/kvemul";
+        else if (dev_mode == 1){
+            dev_name = "/dev/nvme"+std::to_string(i)+"n1";
+        }
+        (void) new (&kv_conts[i]) KVS_CONT(dev_name.c_str(), 64);
+        printf("[dev %d %s] opened\n",i,dev_name.c_str());
     }
     switch (kvr_type) {
     case 0 :
