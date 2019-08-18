@@ -67,8 +67,8 @@ public:
         }
     };
     MemMap() {
-        std::ifstream f("mapping_table.log");
-        if (f.good()) {
+        std::ifstream f("mapping_table.log",std::ifstream::in|std::ios::binary);
+        if (f) {
             deserialize("mapping_table.log");
         }
     };
@@ -118,7 +118,8 @@ int MemMap::serializedSize() {
 void MemMap::serialize(char *filename) {
     // save data to archive
     uint64_t size = serializedSize();
-    char *data = (char *)malloc(size);
+    char *buf = (char *)malloc(size);
+    char *data = buf;
     *(uint64_t *)data = size - sizeof(uint64_t);
     data += sizeof(uint64_t);
     for (auto it = key_map_.begin(); it != key_map_.end(); ++it) {
@@ -134,33 +135,34 @@ void MemMap::serialize(char *filename) {
         data += sizeof(uint64_t);
     }
     // write to file
-    std::ofstream ofs(filename, std::ios::binary);
-    ofs.write(data, size);
+    std::ofstream ofs(filename, std::ofstream::out|std::ios::binary);
+    ofs.write(buf, size);
 
     // clean up
-    free(data);
+    free(buf);
 }
 
 void MemMap::deserialize(char *filename) {
-    std::ifstream ifs(filename, std::ios::binary);
+    std::ifstream ifs(filename, std::ifstream::in|std::ios::binary);
     // create and open an archive for input
     uint64_t blob_size;
     ifs.read((char*)&blob_size, sizeof(uint64_t));
     char *data = (char *)malloc(blob_size);
     ifs.read(data, blob_size);
     // read from archive to data structure
+    char *p = data;
     while (blob_size > 0) {
         // key len (u8)
-        uint8_t key_size = *(uint8_t *)data;
-        data += sizeof(uint8_t);
+        uint8_t key_size = *(uint8_t *)p;
+        p += sizeof(uint8_t);
         blob_size -= sizeof(uint8_t);
         // log_key
-        std::string logkey(data, key_size);
-        data += key_size;
+        std::string logkey(p, key_size);
+        p += key_size;
         blob_size -= key_size;
         // phy_key
-        phy_key phykey(*(uint64_t *)data);
-        data += sizeof(uint64_t);
+        phy_key phykey(*(uint64_t *)p);
+        p += sizeof(uint64_t);
         blob_size -= sizeof(uint64_t);
 
         key_map_.insert(std::make_pair(logkey, phykey));
