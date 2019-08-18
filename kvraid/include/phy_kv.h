@@ -18,29 +18,35 @@ class phy_key
 public:
 	uint64_t phykey;
     //char c_key[FIXED_KEY_LEN];
-    std::string c_key;
+    //std::string c_key;
 
 	phy_key(){}
+
+    phy_key(uint64_t pk) : phykey(pk) {};
 
 	phy_key(uint64_t slab_id, uint64_t seq) {
 		uint64_t tmp = slab_id;
 		phykey = (seq & 0x00FFFFFFFFFFFFFF) | (tmp << 56);
-        tmp = htobe64(phykey);
-        //sprintf(c_key, "%*.s", FIXED_KEY_LEN, (char*)&tmp);
-        //memcpy(c_key, (char*)&tmp, FIXED_KEY_LEN);
-        c_key.append((char*)&tmp, FIXED_KEY_LEN);
+        // tmp = htobe64(phykey);
+        // //sprintf(c_key, "%*.s", FIXED_KEY_LEN, (char*)&tmp);
+        // //memcpy(c_key, (char*)&tmp, FIXED_KEY_LEN);
+        // c_key.append((char*)&tmp, FIXED_KEY_LEN);
 	}
 
     phy_key(char *key, int len) {
+        std::string c_key;
         c_key.append(key, len);
+        decode(&c_key);
     }
 
     void decode(std::string *s_key) {
         //memcpy(c_key, (void *)s_key->c_str(), FIXED_KEY_LEN);
+        std::string c_key;
         c_key.clear();
         c_key.append((char*)s_key->c_str(), FIXED_KEY_LEN);
-        uint64_t *tmp = (uint64_t *)c_key.c_str();
-        phykey = be64toh(*tmp);
+        // uint64_t *tmp = (uint64_t *)c_key.c_str();
+        // phykey = be64toh(*tmp);
+        phykey = *(uint64_t *)c_key.c_str();
     }
 
 	int get_slab_id() {
@@ -48,19 +54,18 @@ public:
 	}
 
     uint8_t get_klen() {
-		//return FIXED_KEY_LEN;
-        return c_key.size();
+		return FIXED_KEY_LEN;
 	}
 
 	uint64_t get_seq() {
 		return (phykey & 0x00FFFFFFFFFFFFFF);
 	}
 
-    const char* c_str() {return c_key.c_str();}
+    const char* c_str() {return (char*)&phykey;}
 
     std::string ToString() {
-        //return std::string(c_key, FIXED_KEY_LEN);
-        return c_key;
+        //uint64_t tmp = htobe64(phykey);
+        return std::string((char*)&phykey, FIXED_KEY_LEN);
     }
 };
 inline bool operator==(const phy_key& lk, const phy_key& hk){
