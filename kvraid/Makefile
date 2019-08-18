@@ -1,4 +1,4 @@
-TARGET=libkvraid.so
+TARGET_DIR=libs
 
 CC=g++
 INCLUDES=-I./include -I./include/jerasure -I./include/gf-complete -I./include/kvssd
@@ -9,11 +9,11 @@ SRCS=./src/threadpool.c ./src/kv_device.cpp ./src/mapping_table.cpp ./src/json11
 
 
 shared:
-	$(CC) -shared -o $(TARGET) $(SRCS) $(INCLUDES) $(LIBS) $(CXXFLAG)
+	$(CC) -shared -o $(TARGET_DIR)/libkvraid.so $(SRCS) $(INCLUDES) $(LIBS) $(CXXFLAG)
 
 static:
 	$(CC) -c $(SRCS) $(INCLUDES) $(LIBS) $(CXXFLAG)
-	ar rvs libkvraid.a *.o 
+	ar rvs $(TARGET_DIR)/libkvraid.a *.o 
 
 clean:
-	rm -rf $(TARGET)
+	rm -rf $(TARGET_DIR)/libkvraid.*

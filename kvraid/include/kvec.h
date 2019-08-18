@@ -274,14 +274,14 @@ public:
         }
         bool Valid() {return it_->Valid();}
         kvr_key Key() {
-            return {(char *)curr_key_.data(), curr_key_.size()};
+            return {(char *)curr_key_.data(), (uint8_t)curr_key_.size()};
         }
         kvr_value Value() {
             if (!val_retrieved_) {
                 retrieveValue(it_->Key().size(), it_->Value(), curr_val_);
                 val_retrieved_ = true;
             }
-            return {(char *)curr_val_.data(), curr_val_.size()};
+            return {(char *)curr_val_.data(), (uint32_t)curr_val_.size()};
         }
         void retrieveValue(int userkey_len, std::string &retrieveKey, std::string &value);
     };
