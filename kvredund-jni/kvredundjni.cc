@@ -57,10 +57,15 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         std::string dev_name;
         if (dev_mode == 0) {
             dev_name = "/dev/kvemul";
+        }
         else if (dev_mode == 1){
             dev_name = "/dev/nvme"+std::to_string(i)+"n1";
         }
-        (void) new (&kv_conts[i]) KVS_CONT(dev_name.c_str(), 64);
+        else {
+            printf("dev_mode wrong, exit\n");
+            exit(-1);
+        }
+        (void) new (&kv_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64);
         printf("[dev %d %s] opened\n",i,dev_name.c_str());
     }
     switch (kvr_type) {
