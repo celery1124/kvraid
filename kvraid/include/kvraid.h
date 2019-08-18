@@ -287,6 +287,7 @@ public:
             ssds_[i].~KV_DEVICE();
         }
         free(ssds_);
+        delete key_map_;
 	}
 
 public:

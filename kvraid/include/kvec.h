@@ -231,6 +231,7 @@ public:
         free(ssds_);
 		delete[] slab_list_;
         free(slabs_);
+        delete key_map_;
 	}
 
 public:
