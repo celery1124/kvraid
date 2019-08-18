@@ -2,6 +2,7 @@
 * 07/03/2019
 * by Mian Qin
 */
+#include <fstream>
 
 #include <map>
 #include <mutex>
@@ -16,6 +17,10 @@ friend class MemMapIterator;
 private:
     std::map<std::string, phy_key> key_map_;
     std::mutex mutex_;
+
+    int serializedSize();
+    void serialize(char *filename);
+    void deserialize(char *filename);
 public:
     class MemMapIterator : public MapIterator {
     private:
@@ -61,8 +66,15 @@ public:
             return curr_val_;
         }
     };
-    MemMap() {};
-    ~MemMap() {};
+    MemMap() {
+        std::ifstream f("mapping_table.log");
+        if (f.good()) {
+            deserialize("mapping_table.log");
+        }
+    };
+    ~MemMap() {
+        serialize("mapping_table.log");
+    };
 
     bool lookup(std::string *key, phy_key *val) {
         std::unique_lock<std::mutex> lock(mutex_);
@@ -93,6 +105,70 @@ public:
         return new MemMapIterator(this);
     }
 };
+
+int MemMap::serializedSize() {
+    int size = 0;
+    for (auto it = key_map_.begin(); it != key_map_.end(); ++it) {
+        // log_key str, len(u8), phy_key(u64)
+        size += it->first.size() + sizeof(uint8_t) + sizeof(uint64_t);
+    }
+    return size + sizeof(uint64_t); // first u64, blob size;
+}
+
+void MemMap::serialize(char *filename) {
+    // save data to archive
+    uint64_t size = serializedSize();
+    char *data = (char *)malloc(size);
+    *(uint64_t *)data = size - sizeof(uint64_t);
+    data += sizeof(uint64_t);
+    for (auto it = key_map_.begin(); it != key_map_.end(); ++it) {
+        uint8_t key_size = (uint8_t)it->first.size();
+        // log_key len (u8)
+        *(uint8_t *)data = key_size;
+        data += sizeof(uint8_t);
+        // log_key str 
+        memcpy(data, it->first.c_str(), key_size);
+        data += key_size;
+        // phy_key
+        *(uint64_t *)data = it->second.get_seq();
+        data += sizeof(uint64_t);
+    }
+    // write to file
+    std::ofstream ofs(filename, std::ios::binary);
+    ofs.write(data, size);
+
+    // clean up
+    free(data);
+}
+
+void MemMap::deserialize(char *filename) {
+    std::ifstream ifs(filename, std::ios::binary);
+    // create and open an archive for input
+    uint64_t blob_size;
+    ifs.read((char*)&blob_size, sizeof(uint64_t));
+    char *data = (char *)malloc(blob_size);
+    ifs.read(data, blob_size);
+    // read from archive to data structure
+    while (blob_size > 0) {
+        // key len (u8)
+        uint8_t key_size = *(uint8_t *)data;
+        data += sizeof(uint8_t);
+        blob_size -= sizeof(uint8_t);
+        // log_key
+        std::string logkey(data, key_size);
+        data += key_size;
+        blob_size -= key_size;
+        // phy_key
+        phy_key phykey(*(uint64_t *)data);
+        data += sizeof(uint64_t);
+        blob_size -= sizeof(uint64_t);
+
+        key_map_.insert(std::make_pair(logkey, phykey));
+    }
+
+    // clean up
+    free(data);
+}
 
 class StorageMap : public Map {
 friend class StorageMapIterator;
