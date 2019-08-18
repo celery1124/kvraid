@@ -186,7 +186,8 @@ int main() {
     KVS_CONT* kvs_conts;
     kvs_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
     for (int i = 0; i < num_ssds; i++) {
-      (void) new (&kvs_conts[i]) KVS_CONT("/dev/kvemul", 64);
+      std::string dev_name = "/dev/kvemul" + std::to_string(i);
+      (void) new (&kvs_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64);
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
@@ -205,6 +206,10 @@ int main() {
     }
 
     printf("finish load\n\n");
+
+    // close kvr and open again (for testing)
+    delete kvr; 
+    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
 
     seek(kvr, 2019);
     printf("finish iteraotr test\n\n");
