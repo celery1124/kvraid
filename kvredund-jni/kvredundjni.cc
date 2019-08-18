@@ -56,7 +56,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     for (int i = 0; i < num_ssds; i++) {
         std::string dev_name;
         if (dev_mode == 0) {
-            dev_name = "/dev/kvemul";
+            dev_name = "/dev/kvemul"+std::to_string(i);
         }
         else if (dev_mode == 1){
             dev_name = "/dev/nvme"+std::to_string(i)+"n1";
