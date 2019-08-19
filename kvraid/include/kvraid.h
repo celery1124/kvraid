@@ -250,6 +250,10 @@ private:
         for(int i = 0; i<k_+r_; i++) waf += ssds_[i].get_waf();
         return waf/(k_+r_);
     }
+
+    // serialiazation
+    void serialize(char *filename);
+    void deserialize(char *filename);
     
 public:
 	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
@@ -324,7 +328,7 @@ public:
         KVRaidIterator(KVRaid *kvr) : kvr_(kvr), val_retrieved_(false) {
             it_ = kvr_->key_map_->NewMapIterator();
         }
-        ~KVRaidIterator() {}
+        ~KVRaidIterator() {delete it_;}
         void Seek(kvr_key &key) {
             std::string seekkey(key.key, key.length);
             it_->Seek(seekkey);

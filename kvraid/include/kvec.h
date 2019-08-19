@@ -253,7 +253,7 @@ public:
         KVECIterator(KVEC *kvr) : kvr_(kvr), val_retrieved_(false) {
             it_ = kvr_->key_map_->NewMapIterator();
         }
-        ~KVECIterator() {}
+        ~KVECIterator() {delete it_;}
         void Seek(kvr_key &key) {
             std::string seekkey(key.key, key.length);
             it_->Seek(seekkey);

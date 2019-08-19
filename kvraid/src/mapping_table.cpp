@@ -186,11 +186,11 @@ public:
         std::string curr_key_;
         std::string curr_val_;
     public:
-        explicit StorageMapIterator(StorageMap *map):map_(map) {
+        explicit StorageMapIterator(StorageMap *map):map_(map), it_(NULL){
             leveldb::ReadOptions rdopts;
             it_ = map_->db_->NewIterator(rdopts);
         }
-        ~StorageMapIterator() {}
+        ~StorageMapIterator() {if(it_ != NULL) delete it_;}
         void Seek(std::string &key) {
             it_->Seek(leveldb::Slice(key));
             if (Valid()) {
@@ -234,6 +234,10 @@ public:
 
         options.env = leveldb::NewKVEnv(leveldb::Env::Default(), conts, k, r);
         leveldb::Status status = leveldb::DB::Open(options, "map", &db_);
+        if (!status.ok()) {
+            printf("mapping table leveldb open error, exit\n");
+            exit(-1);
+        }
     }
     ~StorageMap() {
         delete cache_;
