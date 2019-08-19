@@ -7,6 +7,7 @@
 #include "kv_device.h"
 
 //#define IO_DEBUG
+#define INIT_GET_BUFF 4096 // 4kB (mainly for KVRaid meta data)
 
 #ifdef IO_DEBUG
 struct timeval tp;
@@ -33,6 +34,27 @@ bool KV_DEVICE::kv_store(phy_key *key, phy_val *value)
     gettimeofday(&tp, NULL);
     printf("[%.6f] kv_device:insert key: %s, value: %s\n", ((float)(tp.tv_sec*1000000 + tp.tv_usec - ts)) / 1000000 ,ckey, cval);
 #endif
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
+    return true;
+		
+}
+
+bool KV_DEVICE::kv_store(std::string *key, std::string *value)
+{
+    kvs_store_option option;
+    option.st_type = KVS_STORE_POST;
+    option.kvs_store_compress = false;
+        
+    const kvs_store_context put_ctx = {option, 0, 0};
+    const kvs_key  kvskey = { (void *)key->c_str(), key->size()};
+    const kvs_value kvsvalue = { (void *)value->c_str(), value->size(), 0, 0 /*offset */};
+    int ret = kvs_store_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &put_ctx);
+
+    if (ret != KVS_SUCCESS) {
+        printf("STORE tuple failed with err %s\n", kvs_errstr(ret));
+        exit(1);
+    }
+
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 		
@@ -79,6 +101,29 @@ bool KV_DEVICE::kv_get(phy_key *key, phy_val *value)
     gettimeofday(&tp, NULL);
     printf("[%.6f] kv_device:get key: %s, value: %s\n",((float)(tp.tv_sec*1000000 + tp.tv_usec - ts)) / 1000000 , ckey, ret);
 #endif       
+    stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
+    return true;
+
+}
+
+bool KV_DEVICE::kv_get(std::string *key, std::string *value)
+{
+    const kvs_key  kvskey = { (void *)key->c_str(), key->size() };
+    char *vbuf = (char *)malloc(INIT_GET_BUFF);
+    kvs_value kvsvalue = { (void *)vbuf, INIT_GET_BUFF , 0, 0 /*offset */};
+    kvs_retrieve_option option;
+    memset(&option, 0, sizeof(kvs_retrieve_option));
+    option.kvs_retrieve_decompress = false;
+    option.kvs_retrieve_delete = false;
+    const kvs_retrieve_context ret_ctx = {option, 0, 0};
+    int ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &ret_ctx);
+    if(ret != KVS_SUCCESS && ret != KVS_ERR_KEY_NOT_EXIST) {
+        printf("retrieve tuple %s failed with error 0x%x - %s,\n", key->c_str(), ret, kvs_errstr(ret));
+        exit(1);
+    }
+    value->clear();
+    value->append(vbuf, kvsvalue.actual_value_size);
+    
     stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
     return true;
 
