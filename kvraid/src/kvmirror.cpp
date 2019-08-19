@@ -106,7 +106,7 @@ bool KVMirror::kvr_get(kvr_key *key, kvr_value *value) {
 
     phy_key pkey(key->key, key->length);
     value->val = (char*)malloc(MAX_VAL_SIZE);
-    phy_val pval(value->val, value->length);
+    phy_val pval(value->val, MAX_VAL_SIZE);
 
     ssds_[dev_idx].kv_get(&pkey, &pval);
     value->length = pval.actual_len;

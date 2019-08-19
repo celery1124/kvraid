@@ -33,6 +33,8 @@ namespace kvssd {
       if (callback_put != NULL) {
         callback_put((void *)args_put);
       }
+      if(ioctx->key) free(ioctx->key);
+      if(ioctx->value) free(ioctx->value);
       break;
     }
     case IOCB_ASYNC_GET_CMD : {
@@ -43,6 +45,8 @@ namespace kvssd {
       if (callback_get != NULL) {
         callback_get((void *)args_get->args);
       }
+      if(ioctx->key) free(ioctx->key);
+      if(ioctx->value) free(ioctx->value);
       break;
     }
     case IOCB_ASYNC_DEL_CMD : {
@@ -51,6 +55,7 @@ namespace kvssd {
       if (callback_del != NULL) {
         callback_del((void *)args_del);
       }
+      if(ioctx->key) free(ioctx->key);
       break;
     }
     default : {
@@ -107,9 +112,14 @@ namespace kvssd {
     option.kvs_store_compress = false;
 
     const kvs_store_context put_ctx = {option, (void *)callback, (void *)args};
-    const kvs_key  kvskey = { (void *)key->data(), (uint8_t)key->size()};
-    const kvs_value kvsvalue = { (void *)val->data(), val->size(), 0, 0 /*offset */};
-    kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, &kvskey, &kvsvalue, &put_ctx, on_io_complete);
+    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+    kvskey->key = (void *)key->data();
+    kvskey->length = (uint8_t)key->size();
+    kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
+    kvsvalue->value = (void *)val->data();
+    kvsvalue->length = val->size();
+    kvsvalue->actual_value_size = kvsvalue->offset = 0;
+    kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &put_ctx, on_io_complete);
 
     if (ret != KVS_SUCCESS) {
         printf("kv_store_async error %s\n", kvs_errstr(ret));
@@ -138,7 +148,7 @@ namespace kvssd {
   }
 
   kvs_result KV_DEV::kv_get(const leveldb::Slice *key, char*& vbuf, int& vlen) {
-    vbuf = (char *) aligned_alloc(4096, INIT_GET_BUFF);
+    vbuf = (char *) malloc(INIT_GET_BUFF);
     const kvs_key  kvskey = { (void *)key->data(), (uint8_t)key->size() };
     kvs_value kvsvalue = { vbuf, INIT_GET_BUFF , 0, 0 /*offset */}; //prepare 32KB buffer
     kvs_retrieve_option option;
@@ -154,11 +164,11 @@ namespace kvssd {
     vlen = kvsvalue.actual_value_size;
     if (INIT_GET_BUFF < vlen) {
       // implement own aligned_realloc
-      char *realloc_vbuf = (char *) aligned_alloc(4096, vlen);
+      char *realloc_vbuf = (char *) malloc(vlen + 4 - (vlen%4)); //4byte align
       memcpy(realloc_vbuf, vbuf, INIT_GET_BUFF);
       free(vbuf); vbuf = realloc_vbuf;
       kvsvalue.value = vbuf;
-      kvsvalue.length = vlen;
+      kvsvalue.length = vlen + 4 - (vlen%4);
       kvsvalue.offset = INIT_GET_BUFF; // skip the first IO buffer
       ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &ret_ctx);
       
@@ -223,9 +233,11 @@ namespace kvssd {
   }
 
   kvs_result KV_DEV::kv_delete_async(leveldb::Slice *key, void (*callback)(void *), void *args) {
-    const kvs_key  kvskey = { (void *)key->data(), (uint8_t)key->size() };
+    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+    kvskey->key = (void *)key->data();
+    kvskey->length = (uint8_t)key->size();
     const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)args};
-    kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, &kvskey, &del_ctx, on_io_complete);
+    kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
 
     if(ret != KVS_SUCCESS) {
         printf("kv_delete_async error %s\n", kvs_errstr(ret));
