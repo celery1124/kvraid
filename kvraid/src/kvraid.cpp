@@ -46,6 +46,15 @@ uint64_t SlabQ::get_new_group_id() {
     return ret;
 }
 
+uint64_t SlabQ::get_curr_group_id(){
+    uint64_t ret;
+    {
+        std::unique_lock<std::mutex> lock(seq_mutex_);
+        ret = seq_;
+    }
+    return ret;
+}
+
 void SlabQ::add_delete_id(uint64_t group_id) {
     {
         std::unique_lock<std::mutex> lock(seq_mutex_);
@@ -498,7 +507,6 @@ void KVRaid::bg_GC() {
         {
             std::this_thread::sleep_for(timeToWait);
         }
-        printf("awake ,bg_GC\n");
     }
 }
 
@@ -667,6 +675,41 @@ void KVRaid::KVRaidIterator::retrieveValue(int userkey_len, std::string &retriev
     value.clear();
     value.append(actual_val+userkey_len+KEY_SIZE_BYTES, new_val.length);
     free(actual_val);
+}
+
+void KVRaid::save_meta() {
+    std::string meta_key = "KVRaid_meta";
+    std::string meta_val;
+    meta_val.append((char *)&num_slab_, sizeof(num_slab_)); // num_slabs
+    for (int i = 0; i < num_slab_; i++) {
+        uint64_t seq = slabs_[i].get_curr_group_id();
+        meta_val.append((char *)&seq, sizeof(uint64_t)); // group_id per slab
+    }
+    for (int i = 0; i < r_; i++)
+        ssds_[i].kv_store(&meta_key, &meta_val); // mirror to num_r devs
+}
+    
+bool KVRaid::load_meta(uint64_t *arr, int size) {
+    std::string meta_key = "KVRaid_meta";
+    std::string meta_val;
+    ssds_[0].kv_get(&meta_key, &meta_val); // only access dev_0;
+    if (meta_val.size() == 0) {
+        for (int i = 0; i < size; i++) arr[i] = 0;
+        return false; // no meta;
+    }
+
+    char *p = (char *)meta_val.c_str();
+    int num_slabs = *(int *)p;
+    p += sizeof(int);
+    if (num_slabs != size) {
+        printf("number of slabs not same as last open, exit\n");
+        exit(-1);
+    }
+    for (int i = 0; i < size; i++) {
+        arr[i] = *(uint64_t *)p;
+        p += sizeof(uint64_t);
+    }
+    return true;
 }
 
 

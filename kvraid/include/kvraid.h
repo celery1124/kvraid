@@ -139,9 +139,9 @@ public:
 
     moodycamel::BlockingConcurrentQueue<kvr_context*> q;
     int get_id() {return sid_;}
-    SlabQ(KVRaid *p, int id, int size, int num_d, int num_r, EC *ec, int num_pq) : 
+    SlabQ(KVRaid *p, int id, int size, int num_d, int num_r, EC *ec, uint64_t seq, int num_pq) : 
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), 
-    ec_(ec), num_pq_(num_pq), seq_(0), delete_q(this, num_d, num_d+num_r) {
+    ec_(ec), seq_(seq), num_pq_(num_pq), delete_q(this, num_d, num_d+num_r) {
         // alloacte ec buffer
         data_ = new char*[k_];
         code_ = new char*[r_];
@@ -164,14 +164,6 @@ public:
         }
     }
     ~SlabQ() {
-        for (int i = 0; i < num_pq_; i++) { 
-            {
-                std::unique_lock<std::mutex> lck (thread_m_[i]);
-                shutdown_[i] = true;
-            }
-            thrd_[i]->join();
-            delete thrd_[i];
-        }
         delete [] thrd_;
         delete [] shutdown_;
         delete [] thread_m_;
@@ -185,6 +177,7 @@ public:
     void add_delete_ids(std::vector<uint64_t>& groups);
     void add_delete_id(uint64_t group_id);
     uint64_t get_new_group_id();
+    uint64_t get_curr_group_id();
     bool track_finish(int id, int num_ios);
     void dq_insert(uint64_t index);
     int dq_size() {return delete_q.size();}
@@ -194,6 +187,16 @@ public:
         uint64_t group_id = seq/group_size;
         int id = seq%group_size;
         return ((group_id%group_size) + id) % group_size;
+    }
+    void shutdown_workers() {
+        for (int i = 0; i < num_pq_; i++) { 
+            {
+                std::unique_lock<std::mutex> lck (thread_m_[i]);
+                shutdown_[i] = true;
+            }
+            thrd_[i]->join();
+            delete thrd_[i];
+        }
     }
 };
 
@@ -251,9 +254,9 @@ private:
         return waf/(k_+r_);
     }
 
-    // serialiazation
-    void serialize(char *filename);
-    void deserialize(char *filename);
+    // meta data (slabQ seq) serialiazation
+    void save_meta();
+    bool load_meta(uint64_t *arr, int size);
     
 public:
 	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
@@ -261,15 +264,26 @@ public:
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
         ec_.setup();
-        for (int i = 0; i < num_slab; i++) {
-            slab_list_[i] = s_list[i];
-            (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_, 2);
-        }
 
         ssds_ = (KV_DEVICE *)malloc(sizeof(KV_DEVICE) * (k_+r_));
         for (int i = 0; i < (k_+r_); i++) {
             (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 256);
         }
+        // get KVRaid meta
+        uint64_t *slab_seq = new uint64_t[num_slab];
+        bool newdb = !load_meta(slab_seq, num_slab);
+        if (newdb) {
+            printf("Clean KVRaid initialized\n");
+        }
+        else {
+            printf("Restore existing KVRaid\n");
+        }
+
+        for (int i = 0; i < num_slab; i++) {
+            slab_list_[i] = s_list[i];
+            (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_, slab_seq[i], 2);
+        }
+        delete slab_seq;
 
         switch (meta_t) {
             case Mem:
@@ -293,6 +307,14 @@ public:
 	~KVRaid() {
         shutdown_ = true;
         thrd.join();
+        // shutdown slab workers
+        for (int i = 0; i < num_slab_; i++) {
+            slabs_[i].shutdown_workers();
+        }
+        // save KVRaid state
+        save_meta();
+
+        // clean up slab queues
 		delete[] slab_list_;
         for (int i = 0; i < num_slab_; i++) {
             slabs_[i].~SlabQ();
