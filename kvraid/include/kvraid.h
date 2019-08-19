@@ -120,7 +120,8 @@ private:
     std::mutex seq_mutex_;
 
     int num_pq_;
-    pthread_t *t_PQ;
+    std::mutex *thread_m_;
+    bool *shutdown_;
     std::thread **thrd_;
 
     // track bulk io finish
@@ -146,34 +147,40 @@ public:
         code_ = new char*[r_];
         int buffer_size = sizeof(char) * slab_size_;
         for (int i = 0; i<k_; i++) {
-            data_[i] = (char *) aligned_alloc(4096, buffer_size);
+            data_[i] = (char *) malloc(buffer_size);
         }
         for (int i = 0; i<r_; i++) {
-            code_[i] = (char *) aligned_alloc(4096, buffer_size);
+            code_[i] = (char *) malloc(buffer_size);
         }
 
         // thread processQ thread
         thrd_ = new std::thread*[num_pq];
-        t_PQ = new pthread_t[num_pq];
+        thread_m_ = new std::mutex[num_pq];
+        shutdown_ = new bool[num_pq];
         for (int i = 0; i < num_pq; i++) {
-            thrd_[i] = new std::thread(&SlabQ::processQ, this);
-            t_PQ[i] = thrd_[i]->native_handle();
-            thrd_[i]->detach();
+            shutdown_[i] = false;
+            thrd_[i] = new std::thread(&SlabQ::processQ, this, i);
+            //thrd_[i]->detach();
         }
     }
     ~SlabQ() {
-        for (int i = 0; i < num_pq_; i++) {   
-            pthread_cancel(t_PQ[i]);
+        for (int i = 0; i < num_pq_; i++) { 
+            {
+                std::unique_lock<std::mutex> lck (thread_m_[i]);
+                shutdown_[i] = true;
+            }
+            thrd_[i]->join();
             delete thrd_[i];
         }
         delete [] thrd_;
-        delete [] t_PQ;
+        delete [] shutdown_;
+        delete [] thread_m_;
         for (int i = 0; i < k_; i++) free(data_[i]);
         for (int i = 0; i < r_; i++) free(code_[i]);
         delete [] data_;
         delete [] code_;
     }
-    void processQ();
+    void processQ(int id);
     void get_delete_ids(std::vector<uint64_t>& groups, int trim_num);
     void add_delete_ids(std::vector<uint64_t>& groups);
     void add_delete_id(uint64_t group_id);
@@ -213,7 +220,9 @@ private:
     SlabQ *slabs_;
 
     // GC thread
-    pthread_t t_GC;
+    std::thread thrd;
+    std::mutex thread_m_;
+    bool shutdown_;
 
 	int kvr_get_slab_id(int size);
     int process_slabq();
@@ -271,13 +280,15 @@ public:
         }
 
         // GC thread
-        std::thread thrd = std::thread(&KVRaid::bg_GC, this);
-        t_GC = thrd.native_handle();
-        thrd.detach();
+        shutdown_ = false;
+        thrd = std::thread(&KVRaid::bg_GC, this);
+        //t_GC = thrd.native_handle();
+        //thrd.detach();
 	}
 
 	~KVRaid() {
-        pthread_cancel(t_GC);
+        shutdown_ = true;
+        thrd.join();
 		delete[] slab_list_;
         for (int i = 0; i < num_slab_; i++) {
             slabs_[i].~SlabQ();

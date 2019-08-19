@@ -218,8 +218,9 @@ static int dequeue_bulk_timed(moodycamel::BlockingConcurrentQueue<T*> &q,
     return total_count;
 };
 
-void SlabQ::processQ() {
+void SlabQ::processQ(int id) {
     while (true) {
+        
         // clean buffer
         //printf("======clean buffer======\n");
         clear_data_buf();
@@ -228,12 +229,20 @@ void SlabQ::processQ() {
         int dev_idx;
         int total_count = 0;
         do {
+            // check thread shutdown
+            {
+                std::unique_lock<std::mutex> lck (thread_m_[id]);
+                if (shutdown_[id] == true) return;
+            }
             int count;
-            kvr_context **kvr_ctxs = new kvr_context*[k_];
+            kvr_context **kvr_ctxs = new kvr_context*[k_]; // TODO might leak when shutdown
             //count = q.wait_dequeue_bulk_timed(kvr_ctxs, k_-total_count, 7000);
             count = dequeue_bulk_timed<kvr_context>(q, kvr_ctxs, k_-total_count, DEQ_TIMEOUT);
 
-            if(count == 0) continue;
+            if(count == 0) { // dequeue timeout
+                delete kvr_ctxs;
+                continue;
+            }
 
             // allocate pkey, pval
             phy_key *pkeys = (phy_key *)malloc(sizeof(phy_key)*(count+r_));
@@ -474,6 +483,11 @@ void KVRaid::bg_GC() {
 
     while(true)
     {
+        // check thread shutdown
+        {
+            std::unique_lock<std::mutex> lck (thread_m_);
+            if (shutdown_ == true) return;
+        }
         auto start = std::chrono::steady_clock::now();
         DoGC();
         auto end = std::chrono::steady_clock::now();
@@ -484,6 +498,7 @@ void KVRaid::bg_GC() {
         {
             std::this_thread::sleep_for(timeToWait);
         }
+        printf("awake ,bg_GC\n");
     }
 }
 

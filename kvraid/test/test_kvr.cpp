@@ -191,14 +191,15 @@ int main() {
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
     std::thread *th_load[16];
     std::thread *th_update[16];
     std::thread *th_get[16];
     for (int i = 0; i< thread_cnt; i++) {
-        th_load[i] = new std::thread(load, kvr, 10000 , true, i);
+        th_load[i] = new std::thread(load, kvr, 100 , true, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
@@ -209,7 +210,7 @@ int main() {
 
     // close kvr and open again (for testing)
     delete kvr; 
-    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
 
     seek(kvr, 2019);
     printf("finish iteraotr test\n\n");
