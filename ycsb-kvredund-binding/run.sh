@@ -44,7 +44,7 @@ do
 						
 					# ycsb load
 					./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads > tmp.log 
-					
+						
 					echo $testfile results >> $result_txt
 					echo load >> $result_txt
 					printf "load_tp: " >> $result_txt
@@ -58,6 +58,7 @@ do
 					cat kv_device.log|grep ", get"| awk '{ SUM += $4} END { print SUM }' >> $result_txt
 					printf "delete_ios: " >> $result_txt
 					cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
+
 
 					rm -rf kv_device.log
 					
