@@ -5,8 +5,9 @@ numofexp=$1
 result_dir=$HOME/$2
 
 mkdir -p $result_dir
+rm *.log # remove uncessary files
 
-threads="1"
+threads="8"
 tests="evalb evalc"
 #tests="evala evalb evalc evald evale"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
@@ -31,12 +32,12 @@ do
 					echo "" >> $result_txt
 
 					# format kvssd
-					# nvme format /dev/nvme0n1
-					# nvme format /dev/nvme1n1
-					# nvme format /dev/nvme2n1
-					# nvme format /dev/nvme3n1
-					# nvme format /dev/nvme4n1
-					# nvme format /dev/nvme5n1
+					 nvme format /dev/nvme0n1
+					 nvme format /dev/nvme1n1
+					 nvme format /dev/nvme2n1
+					 nvme format /dev/nvme3n1
+					 nvme format /dev/nvme4n1
+					 nvme format /dev/nvme5n1
 
 					# clean log file
 					rm -rf *.log
