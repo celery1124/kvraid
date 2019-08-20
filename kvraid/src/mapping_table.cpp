@@ -131,7 +131,7 @@ void MemMap::serialize(char *filename) {
         memcpy(data, it->first.c_str(), key_size);
         data += key_size;
         // phy_key
-        *(uint64_t *)data = it->second.get_seq();
+        *(uint64_t *)data = it->second.get_phykey();
         data += sizeof(uint64_t);
     }
     // write to file
