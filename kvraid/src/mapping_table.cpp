@@ -178,6 +178,7 @@ private:
     leveldb::DB* db_;
     leveldb::Cache* cache_;
     leveldb::WriteOptions write_options_;
+    leveldb::Options options;
 public:
     class StorageMapIterator : public MapIterator {
     private:
@@ -225,7 +226,6 @@ public:
     StorageMap(KVS_CONT *conts, int k, int r) {
         //cache_ = leveldb::NewLRUCache(4194304);
         cache_ = NULL;
-        leveldb::Options options;
         options.create_if_missing = true;
         options.block_cache = cache_;
         options.max_open_files = 1000;
@@ -242,6 +242,7 @@ public:
     ~StorageMap() {
         delete cache_;
         delete db_;
+        delete options.env;
     }
     bool lookup(std::string *key, phy_key *val) {
         bool exist;
