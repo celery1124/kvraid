@@ -24,7 +24,9 @@ namespace kvssd {
     public:
       KV_DEV(KVS_CONT *kvs_cont) : cont_(kvs_cont) {};
       ~KV_DEV() {
-        printf("store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        FILE *fd = fopen("kv_device.log","a");
+        fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        fclose(fd);
       };
       bool kv_exist (leveldb::Slice *key);
       uint32_t kv_get_size(leveldb::Slice *key);

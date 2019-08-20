@@ -61,7 +61,9 @@ public:
     ~KV_DEVICE() {
         // threadpool_destroy(pool, 1);
         // sem_destroy(&q_sem);
-        printf("store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        FILE *fd = fopen("kv_device.log","a");
+        fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        fclose(fd);
     };
 
     
