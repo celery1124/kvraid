@@ -178,7 +178,7 @@ namespace kvssd {
   }
 
   kvs_result KV_DEV::kv_get_async(const leveldb::Slice *key, void (*callback)(void *), void *args) {
-    char *vbuf = (char *) aligned_alloc(4096, INIT_GET_BUFF);
+    char *vbuf = (char *) malloc(INIT_GET_BUFF);
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *) key->data();
     kvskey->length = key->size();
