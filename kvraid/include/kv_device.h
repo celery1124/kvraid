@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string>
+#include <vector>
 #include <atomic>
 #include "kvssd/kvs_api.h"
 #include "kvssd/kvs_cont.h"
@@ -76,6 +77,8 @@ public:
     bool kv_astore(phy_key *key, phy_val *value, void (*callback)(void *), void *argument);
 	bool kv_adelete(phy_key *key, void (*callback)(void *), void *argument);
     bool kv_aget(phy_key *key, phy_val *value, void (*callback)(void *), void *argument);
+
+    void kv_scan_keys(std::vector<std::string> &keys); // for testing
 
     int64_t get_capacity();
     double get_util();

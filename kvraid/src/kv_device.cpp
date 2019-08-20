@@ -291,6 +291,94 @@ float KV_DEVICE::get_waf() {
     return 0;
 }
 
+#define ITER_BUFF 32768
+struct iterator_info{
+    kvs_iterator_handle iter_handle;
+    kvs_iterator_list iter_list;
+    int has_iter_finish;
+    kvs_iterator_option g_iter_mode;
+};
+
+void KV_DEVICE::kv_scan_keys(std::vector<std::string>& keys) {
+    struct iterator_info *iter_info = (struct iterator_info *)malloc(sizeof(struct iterator_info));
+    iter_info->g_iter_mode.iter_type = KVS_ITERATOR_KEY;
+    
+    int ret;
+    printf("start scan keys\n");
+    /* Open iterator */
+
+    kvs_iterator_context iter_ctx_open;
+    iter_ctx_open.option = iter_info->g_iter_mode;
+    iter_ctx_open.bitmask = 0x00000000;
+    unsigned int PREFIX_KV = 0;
+
+    iter_ctx_open.bit_pattern = 0x00000000;
+    iter_ctx_open.private1 = NULL;
+    iter_ctx_open.private2 = NULL;
+    
+    ret = kvs_open_iterator(cont_->cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+    if(ret != KVS_SUCCESS) {
+      printf("iterator open fails with error 0x%x - %s\n", ret, kvs_errstr(ret));
+      free(iter_info);
+      exit(1);
+    }
+      
+    /* Do iteration */
+    iter_info->iter_list.size = ITER_BUFF;
+    uint8_t *buffer;
+    buffer =(uint8_t*) kvs_malloc(ITER_BUFF, 4096);
+    iter_info->iter_list.it_list = (uint8_t*) buffer;
+
+    kvs_iterator_context iter_ctx_next;
+    iter_ctx_next.option = iter_info->g_iter_mode;
+    iter_ctx_next.private1 = iter_info;
+    iter_ctx_next.private2 = NULL;
+
+    while(1) {
+      iter_info->iter_list.size = ITER_BUFF;
+      memset(iter_info->iter_list.it_list, 0, ITER_BUFF);
+      ret = kvs_iterator_next(cont_->cont_handle, iter_info->iter_handle, &iter_info->iter_list, &iter_ctx_next);
+      if(ret != KVS_SUCCESS) {
+        printf("iterator next fails with error 0x%x - %s\n", ret, kvs_errstr(ret));
+        free(iter_info);
+        exit(1);
+      }
+          
+      uint8_t *it_buffer = (uint8_t *) iter_info->iter_list.it_list;
+      uint32_t key_size = 0;
+      
+      for(int i = 0;i < iter_info->iter_list.num_entries; i++) {
+        // get key size
+        key_size = *((unsigned int*)it_buffer);
+        it_buffer += sizeof(unsigned int);
+
+        // add key
+        keys.push_back(std::string((char *)it_buffer, key_size));
+        it_buffer += key_size;
+      }
+          
+      if(iter_info->iter_list.end) {
+        break;
+      } 
+    }
+
+    /* Close iterator */
+    kvs_iterator_context iter_ctx_close;
+    iter_ctx_close.private1 = NULL;
+    iter_ctx_close.private2 = NULL;
+
+    ret = kvs_close_iterator(cont_->cont_handle, iter_info->iter_handle, &iter_ctx_close);
+    if(ret != KVS_SUCCESS) {
+      printf("Failed to close iterator\n");
+      exit(1);
+    }
+    
+    if(buffer) kvs_free(buffer);
+    if(iter_info) free(iter_info);
+    
+    return;
+  }
+
 
 // static void io_task(void *arg) {
 //     dev_io_context* ctx = (dev_io_context *)arg;
