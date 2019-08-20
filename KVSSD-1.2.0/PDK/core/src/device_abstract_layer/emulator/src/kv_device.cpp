@@ -1402,7 +1402,8 @@ kv_result kv_device_internal::submit_io(kv_queue_handle que_hdl, io_cmd *cmd) {
     }
 
     emul_ioqueue* eque = (emul_ioqueue*)queue;
-    auto res = eque->enqueue(cmd, false);
+    //auto res = eque->enqueue(cmd, false);
+    auto res = eque->enqueue(cmd, true);
 
     return res;
 }
