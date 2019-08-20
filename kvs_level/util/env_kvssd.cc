@@ -219,6 +219,9 @@ class KVSSDEnv : public EnvWrapper {
     kvd_ = new kvssd::KV_DEV_ARRAY(k_, r_, kvds_);
   }
   virtual ~KVSSDEnv() {
+    for (int i = 0; i < (k_+r_); i++) {
+      kvds_[i].~KV_DEV();
+    } 
 		free(kvds_);
     delete kvd_;
   }

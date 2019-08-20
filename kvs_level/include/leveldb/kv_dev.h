@@ -4,18 +4,28 @@
 #include <stdlib.h>
 #include <string>
 #include <vector>
+#include <atomic>
 #include "leveldb/slice.h"
 #include "kvssd/kvs_api.h"
 #include "kvssd/kvs_cont.h"
 #include "leveldb/ec.h"
 
 namespace kvssd {
+  typedef struct {
+      std::atomic<uint32_t> num_store{0};
+      std::atomic<uint32_t> num_retrieve{0};
+      std::atomic<uint32_t> num_delete{0};
+  } kvd_stats;
+
   class KV_DEV {
     private:
       KVS_CONT *cont_;
+      kvd_stats stats;
     public:
       KV_DEV(KVS_CONT *kvs_cont) : cont_(kvs_cont) {};
-      ~KV_DEV() {};
+      ~KV_DEV() {
+        printf("store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+      };
       bool kv_exist (leveldb::Slice *key);
       uint32_t kv_get_size(leveldb::Slice *key);
       kvs_result kv_store(leveldb::Slice *key, leveldb::Slice *val);

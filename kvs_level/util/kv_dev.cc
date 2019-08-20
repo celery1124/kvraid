@@ -103,6 +103,7 @@ namespace kvssd {
         exit(1);
     }
     //printf("[kv_store] key: %s, size: %d\n",std::string(key->data(),key->size()).c_str(), val->size());
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return ret;
   }
 
@@ -125,6 +126,7 @@ namespace kvssd {
         printf("kv_store_async error %s\n", kvs_errstr(ret));
         exit(1);
     }
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return ret;
   }
 
@@ -157,6 +159,7 @@ namespace kvssd {
     option.kvs_retrieve_delete = false;
     const kvs_retrieve_context ret_ctx = {option, 0, 0};
     kvs_result ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &ret_ctx);
+    stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
     if(ret != KVS_SUCCESS) {
       return ret;
     }
@@ -171,7 +174,7 @@ namespace kvssd {
       kvsvalue.length = vlen + 4 - (vlen%4);
       kvsvalue.offset = INIT_GET_BUFF; // skip the first IO buffer
       ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &ret_ctx);
-      
+      stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
     }
     //printf("[kv_get] key: %s, size: %d\n",std::string(key->data(),key->size()).c_str(), vlen);
     return ret;
@@ -197,6 +200,7 @@ namespace kvssd {
       printf("kv_get_async error %d\n", ret);
       exit(1);
     }
+    stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
     return KVS_SUCCESS;
   }
 
@@ -228,7 +232,8 @@ namespace kvssd {
         printf("delete tuple failed with error %s\n", kvs_errstr(ret));
         exit(1);
     }
-    printf("[kv_delete] key: %s\n",std::string(key->data(),key->size()).c_str());
+    //printf("[kv_delete] key: %s\n",std::string(key->data(),key->size()).c_str());
+    stats.num_delete.fetch_add(1, std::memory_order_relaxed);
     return ret;
   }
 
@@ -243,6 +248,7 @@ namespace kvssd {
         printf("kv_delete_async error %s\n", kvs_errstr(ret));
         exit(1);
     }
+    stats.num_delete.fetch_add(1, std::memory_order_relaxed);
     return ret;
   
   }
