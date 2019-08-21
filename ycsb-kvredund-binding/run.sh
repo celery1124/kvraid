@@ -8,8 +8,8 @@ mkdir -p $result_dir
 rm *.log # remove uncessary files
 
 threads="8"
-tests="evalf"
-#tests="evala evalb evalc evald evale evalf"
+#tests="evalf"
+tests="evala evalb evalc evald evale evalf"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 
@@ -92,7 +92,7 @@ do
 					printf "delete_ios: " >> $result_txt
 					cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
 
-					rm -rf kv_device.log
+					rm -rf *.log
 
 					sleep 3
 					# # ycsb run 
