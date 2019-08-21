@@ -12,6 +12,10 @@ tests="evalf"
 #tests="evala evalb evalc evald evale evalf"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
+
+# clean remaining log file in any
+rm -rf *.log
+
 for exp_id in $( seq 1 $numofexp )
 do
 	for testfile in $tests
@@ -38,9 +42,6 @@ do
 					 nvme format /dev/nvme3n1
 					 nvme format /dev/nvme4n1
 					 nvme format /dev/nvme5n1
-
-					# clean log file
-					rm -rf *.log
 						
 					# ycsb load
 					./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads > tmp.log 
