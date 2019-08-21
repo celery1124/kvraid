@@ -69,14 +69,19 @@ do
 					echo "run" >> $result_txt
 					printf "run_tp: " >> $result_txt
 					cat tmp.log|grep OVERALL|grep Throughput|awk '{print $3}' >> $result_txt
+					printf "\n" >> $result_txt
 					printf "insert_lat: " >> $result_txt
 					cat tmp.log|grep AverageLatency|grep INSERT|awk '{print $3}' >> $result_txt
+					printf "\n" >> $result_txt
 					printf "update_lat: " >> $result_txt
 					cat tmp.log|grep AverageLatency|grep UPDATE|awk '{print $3}' >> $result_txt
+					printf "\n" >> $result_txt
 					printf "get_lat: " >> $result_txt
 					cat tmp.log|grep AverageLatency|grep READ|awk '{print $3}' >> $result_txt
+					printf "\n" >> $result_txt
 					printf "scan_lat: " >> $result_txt
 					cat tmp.log|grep AverageLatency|grep SCAN|awk '{print $3}' >> $result_txt
+					printf "\n" >> $result_txt
 					printf "rmw_lat: " >> $result_txt
 					cat tmp.log|grep AverageLatency|grep READMODIFYWRITE|awk '{print $3}' >> $result_txt
 					# report io
