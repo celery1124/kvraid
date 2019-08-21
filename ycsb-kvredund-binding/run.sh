@@ -8,8 +8,8 @@ mkdir -p $result_dir
 rm *.log # remove uncessary files
 
 threads="8"
-tests="evalb evalc"
-#tests="evala evalb evalc evald evale"
+tests="evalf"
+#tests="evala evalb evalc evald evale evalf"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 for exp_id in $( seq 1 $numofexp )
@@ -76,6 +76,8 @@ do
 					cat tmp.log|grep AverageLatency|grep READ|awk '{print $3}' >> $result_txt
 					printf "scan_lat: " >> $result_txt
 					cat tmp.log|grep AverageLatency|grep SCAN|awk '{print $3}' >> $result_txt
+					printf "rmw_lat: " >> $result_txt
+					cat tmp.log|grep AverageLatency|grep READMODIFYWRITE|awk '{print $3}' >> $result_txt
 					# report io
 					printf "store_ios: " >> $result_txt
 					cat kv_device.log|grep ", get"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
@@ -98,6 +100,10 @@ do
 						
 					echo "" >> $result_txt
 				done
+				# no meta_type for KVMirror
+				if [[ "$kv_type" == "2" ]]; then
+					break
+				fi
 			done
 		done
 	done
