@@ -59,20 +59,34 @@ do
 					printf "delete_ios: " >> $result_txt
 					cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
 
-
 					rm -rf kv_device.log
 					
 					sleep 3
-					# # ycsb run 
+					# ycsb run 
 
-					# ./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads > tmp.log  
-					# echo "run scan 100" >> $result_txt
-					# printf "run_tp: " >> $result_txt
-					# cat tmp.log|grep OVERALL|grep Throughput|awk '{print $3}' >> $result_txt
-					# printf "scan_lat: " >> $result_txt
-					# cat tmp.log|grep AverageLatency|grep SCAN|awk '{print $3}' >> $result_txt
+					./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads > tmp.log  
+					echo "run" >> $result_txt
+					printf "run_tp: " >> $result_txt
+					cat tmp.log|grep OVERALL|grep Throughput|awk '{print $3}' >> $result_txt
+					printf "insert_lat: " >> $result_txt
+					cat tmp.log|grep AverageLatency|grep INSERT|awk '{print $3}' >> $result_txt
+					printf "update_lat: " >> $result_txt
+					cat tmp.log|grep AverageLatency|grep UPDATE|awk '{print $3}' >> $result_txt
+					printf "get_lat: " >> $result_txt
+					cat tmp.log|grep AverageLatency|grep READ|awk '{print $3}' >> $result_txt
+					printf "scan_lat: " >> $result_txt
+					cat tmp.log|grep AverageLatency|grep SCAN|awk '{print $3}' >> $result_txt
+					# report io
+					printf "store_ios: " >> $result_txt
+					cat kv_device.log|grep ", get"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
+					printf "get_ios: " >> $result_txt
+					cat kv_device.log|grep ", get"| awk '{ SUM += $4} END { print SUM }' >> $result_txt
+					printf "delete_ios: " >> $result_txt
+					cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
 
-					# sleep 3
+					rm -rf kv_device.log
+
+					sleep 3
 					# # ycsb run 
 
 					# ./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads > tmp.log  
