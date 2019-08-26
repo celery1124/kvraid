@@ -281,7 +281,7 @@ public:
 
         for (int i = 0; i < num_slab; i++) {
             slab_list_[i] = s_list[i];
-            (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_, slab_seq[i], 2);
+            (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_, slab_seq[i], 1);
         }
         delete slab_seq;
 
