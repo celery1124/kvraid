@@ -33,7 +33,7 @@ public:
         ~MemMapIterator() {}
         void Seek(std::string &key) {
             std::unique_lock<std::mutex> lock(map_->mutex_);
-            it_ = map_->key_map_.find(key);
+            it_ = map_->key_map_.lower_bound(key);
             if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
