@@ -117,7 +117,7 @@ void update(KVR *kvr, int num, bool seq, int tid) {
   Random rand(0);
   kvr_key *keys = new kvr_key[num];
   kvr_value *vals = new kvr_value[num];
-  for (int j = 0; j < 10; j++) {
+  for (int j = 0; j < 1; j++) {
     for (int i = 0; i < num; i++) {
         const int k = seq ? i + tid*num : (rand.Next() % num) + tid*num;
         char key[100];
@@ -179,8 +179,8 @@ void seek (KVR *kvr, int skey) {
 }
 
 int main() {
-    int num_ssds = 5;
-    int k = 3, r = 2;
+    int num_ssds = 6;
+    int k = 4, r = 2;
     int slab_list[2] = {1024, 2048};
 
     KVS_CONT* kvs_conts;
@@ -191,7 +191,7 @@ int main() {
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Storage);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
     //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
@@ -211,13 +211,16 @@ int main() {
     // close kvr and open again (for testing)
     delete kvr; 
     //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Storage);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
 
-    seek(kvr, 19);
-    printf("finish iteraotr test\n\n");
+    // seek(kvr, 19);
+    // printf("finish iteraotr test\n\n");
 
     for (int i = 0; i< thread_cnt; i++) {
-        th_update[i] = new std::thread(update, kvr, 100, false, i);
+      if (i%2 == 0)
+        th_update[i] = new std::thread(update, kvr, 10000, false, i);
+      else
+        th_update[i] = new std::thread(get, kvr, 10000, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
@@ -226,15 +229,15 @@ int main() {
 
     printf("finish update\n\n");
 
-    for (int i = 0; i< thread_cnt; i++) {
-        th_get[i] = new std::thread(get, kvr, 100, i);
-    }
+    // for (int i = 0; i< thread_cnt; i++) {
+    //     th_get[i] = new std::thread(get, kvr, 100, i);
+    // }
 
-    for (int i = 0; i< thread_cnt; i++) {
-        th_get[i]->join();
-    }
+    // for (int i = 0; i< thread_cnt; i++) {
+    //     th_get[i]->join();
+    // }
 
-    printf("finish get\n\n");
+    // printf("finish get\n\n");
 
     seek(kvr, 19);
     printf("finish iteraotr test\n\n");
