@@ -18,6 +18,7 @@
 #include "kvmirror.h"
 
 KVS_CONT* kv_conts;
+int num_ssds;
 KVR *kvr;
 int batch_size;
 // int slab_list[2] = {1024, 2048};
@@ -51,7 +52,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         slab_list[i] = slab_array[i].int_value();
     }
 
-    int num_ssds = k+r;
+    num_ssds = k+r;
 	kv_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
     for (int i = 0; i < num_ssds; i++) {
         std::string dev_name;
@@ -90,6 +91,9 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
 
 jboolean Java_com_yahoo_ycsb_db_KVredund_close(JNIEnv* env, jobject /*jdb*/) { 
     delete kvr;
+    for (int i = 0; i < num_ssds; i++) {
+       kv_conts[i].~KVS_CONT();
+    }
 }
 
 jint Java_com_yahoo_ycsb_db_KVredund_getBatchSize (JNIEnv *env, jobject) {
