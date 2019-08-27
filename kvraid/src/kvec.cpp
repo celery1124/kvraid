@@ -6,6 +6,18 @@
 
 namespace kvec {
 
+static void pack_value(char *dst, kvr_value *val) {
+    *((uint32_t*)dst) = val->length;
+    memcpy(dst+VAL_SIZE_BYTES, val->val, val->length);
+}
+
+static void unpack_value(char *src, kvr_value *val) {
+    uint32_t val_len = *((uint32_t*)src);
+    
+    val->length = val_len;
+    memcpy(val->val, src+VAL_SIZE_BYTES, val->length);
+}
+
 void SlabQ::get_index_id(uint64_t *index) {
     std::unique_lock<std::mutex> lock(seq_mutex_);
     if (!avail_seq_.empty()) {
@@ -288,34 +300,45 @@ int KVEC::kvr_get_slab_id(int size) {
 }
 
 bool KVEC::kvr_insert(kvr_key *key, kvr_value *value) {
-    
-    int slab_id = kvr_get_slab_id(value->length);
+    int packed_val_len = value->length + VAL_SIZE_BYTES;
+    int slab_id = kvr_get_slab_id(packed_val_len);
     SlabQ *slab = &slabs_[slab_id];
 
+    // pack value with val_len
+    char *val_buf = (char *)malloc(packed_val_len);
+    pack_value(val_buf, value);
+    kvr_value packed_value = {val_buf, packed_val_len};
     // insert to slab
-    slab->slab_insert(key, value);
+    slab->slab_insert(key, &packed_value);
 
+    free(val_buf);
     return true;
 }
 bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
-    
+    int packed_val_len = value->length + VAL_SIZE_BYTES;
     // lookup mapping table
     phy_key pkey;
     std::string skey = std::string(key->key, key->length);
     key_map_->lookup(&skey, &pkey);
 
-    int slab_id = kvr_get_slab_id(value->length);
+    int slab_id = kvr_get_slab_id(packed_val_len);
+    // pack value with val_len
+    char *val_buf = (char *)malloc(packed_val_len);
+    pack_value(val_buf, value);
+    kvr_value packed_value = {val_buf, packed_val_len};
+
     if (slab_id == pkey.get_slab_id()) { //update the slab
         SlabQ *slab = &slabs_[slab_id];
-        slab->slab_update(value, &pkey);
+        slab->slab_update(&packed_value, &pkey);
     }
     else { // insert + delete
         SlabQ *new_slab = &slabs_[slab_id];
         SlabQ *old_slab = &slabs_[pkey.get_slab_id()];
-        new_slab->slab_insert(key, value);
+        new_slab->slab_insert(key, &packed_value);
         old_slab->slab_delete(&pkey);
     }
 
+    free(val_buf);
     return true;
 }
 bool KVEC::kvr_delete(kvr_key *key) {
@@ -352,16 +375,89 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
     // careful, different dev_idx mapping to KVRaid
     int dev_idx = (((seq/k_) % (k_+r_)) + seq%k_) % (k_+r_); 
 
-
-    value->val = (char*)malloc(slab_list_[slab_id]);
-    phy_val pval(value->val, slab_list_[slab_id]);
+    char *get_val_buf = (char *)malloc(slab_list_[slab_id]);
+    phy_val pval(get_val_buf, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     ssds_[dev_idx].kv_get(&pkey, &pval);
-    value->length = pval.actual_len;
+
+    value->val = (char*)malloc(slab_list_[slab_id]);
+    unpack_value(get_val_buf, value);
+    free(get_val_buf);
 
     return true;
 }
 
+bool KVEC::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
+    std::string skey = std::string(key->key, key->length);
+    phy_key pkey;
+    // lookup log->phy translation table
+    bool exist = key_map_->lookup(&skey, &pkey);
+    if (!exist) {
+        printf("[KVEC::kvr_get] logical key not exist\n");
+        exit(-1);
+    }
+
+    int slab_id = pkey.get_slab_id();
+    int seq = pkey.get_seq();
+    // careful, different dev_idx mapping to KVRaid
+    int dev_idx = (((seq/k_) % (k_+r_)) + seq%k_) % (k_+r_); 
+
+    if (dev_idx == erased) {
+        int group_id = seq/k_;
+        int group_offset = seq%k_;
+        int slab_size_ = slab_list_[slab_id];
+        int dev_index = group_id % (k_+r_);
+
+        // decode buffers
+        char **data = (char **)malloc(k_*sizeof(char *));
+        char **codes = (char **)malloc(r_*sizeof(char *));
+        for (int i = 0; i < k_; i++) data[i] = (char *)malloc(slab_size_);
+        for (int i = 0; i < r_; i++) codes[i] = (char *)malloc(slab_size_);
+
+        // read survival data and codes
+        phy_key *pkeys_c = (phy_key *)malloc(sizeof(phy_key)*(k_+r_-1));
+        phy_val *pvals_c = (phy_val *)malloc(sizeof(phy_val)*(k_+r_-1));
+        Monitor *mons_c = new Monitor[k_+r_-1];
+        int j = 0;
+        int logic_erased;
+        for (int i = 0; i < (k_+r_); i++) {
+            if (dev_index != dev_idx) {
+                if (i < k_) {
+                    (void) new (&pkeys_c[j]) phy_key(slab_id, group_id*k_+i);
+                    (void) new (&pvals_c[j]) phy_val(data[i], slab_size_);
+                }
+                else {
+                    (void) new (&pkeys_c[j]) phy_key(slab_id, group_id*k_);
+                    (void) new (&pvals_c[j]) phy_val(codes[i-k_], slab_size_);
+                }
+                ssds_[dev_index].kv_aget(&pkeys_c[j], &pvals_c[j], on_io_complete, (void *)&mons_c[j]);
+                j++;
+            }
+            else logic_erased = i;
+            dev_index = (dev_index+1)%(k_+r_);
+        }
+        for (int i = 0; i < (k_+r_-1); i++) {
+            mons_c[i].wait();
+        }
+
+        // EC decode
+        ec_.single_failure_decode(logic_erased, data, codes, slab_size_);
+        value->val = (char*)malloc(slab_size_);
+        unpack_value(data[logic_erased], value);
+
+    }
+    else {
+        char *get_val_buf = (char *)malloc(slab_list_[slab_id]);
+        phy_val pval(get_val_buf, slab_list_[slab_id]);
+        //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
+        ssds_[dev_idx].kv_get(&pkey, &pval);
+
+        value->val = (char*)malloc(slab_list_[slab_id]);
+        unpack_value(get_val_buf, value);
+        free(get_val_buf);
+    }
+    return true;
+}
 
 bool KVEC::kvr_write_batch(WriteBatch *batch) {
     printf("NOT IMPLEMENT\n");
@@ -383,10 +479,14 @@ void KVEC::KVECIterator::retrieveValue(int userkey_len, std::string &retrieveKey
     phy_val pval(actual_val, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     ssds_[dev_idx].kv_get(&pkey, &pval);
+    kvr_value get_val;
+    get_val.val = (char *)malloc(pval.actual_len);
+    unpack_value(actual_val, &get_val);
 
     value.clear();
-    value.append(actual_val, pval.actual_len);
+    value.append(get_val.val, get_val.length);
     free(actual_val);
+    free(get_val.val);
 }
 
 
