@@ -114,6 +114,22 @@ bool KVMirror::kvr_get(kvr_key *key, kvr_value *value) {
     return true;
 }
 
+bool KVMirror::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
+    // Hash to get start dev index
+    int dev_idx = get_dev_idx(key->key, key->length);
+    // If dev erased, get from next dev
+    if (dev_idx == erased) dev_idx = (dev_idx+1)%(k_+r_);
+
+    phy_key pkey(key->key, key->length);
+    value->val = (char*)malloc(MAX_VAL_SIZE);
+    phy_val pval(value->val, MAX_VAL_SIZE);
+
+    ssds_[dev_idx].kv_get(&pkey, &pval);
+    value->length = pval.actual_len;
+
+    return true;
+}
+
 bool KVMirror::kvr_write_batch(WriteBatch *batch) {
     printf("NOT IMPLEMENT\n");
 }
