@@ -36,6 +36,8 @@ public:
 	virtual bool kvr_get(kvr_key *key, kvr_value *value) = 0;
 
     virtual bool kvr_write_batch(WriteBatch *batch) = 0;
+    
+    virtual bool kvr_erased_get(int erased, kvr_key *key, kvr_value *value) = 0;
 
     virtual Iterator* NewIterator() = 0;
 };
