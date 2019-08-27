@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #define KEY_SIZE_BYTES sizeof(uint8_t)
+#define VAL_SIZE_BYTES sizeof(uint32_t)
 
 typedef struct {
     char *key;

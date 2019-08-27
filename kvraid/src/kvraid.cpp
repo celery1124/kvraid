@@ -156,20 +156,24 @@ void DeleteQ::erase(uint64_t index) {
 }
 
 static void pack_value(char *dst, kvr_key *key, kvr_value *val) {
-    uint8_t key_len = key->length;
-    *((uint8_t*)dst) = key->length;
-    memcpy(dst+KEY_SIZE_BYTES, key->key, key_len);
-    memcpy(dst+KEY_SIZE_BYTES+key_len, val->val, val->length);
+    char *p = dst;
+    *((uint8_t*)p) = key->length;
+    p += KEY_SIZE_BYTES;
+    memcpy(dst, key->key, key->length);
+    p += key->length;
+    *((uint32_t*)p) = val->length;
+    p += VAL_SIZE_BYTES;
+    memcpy(dst, val->val, val->length);
 }
 
-static void unpack_value(char *src, uint32_t val_len, kvr_key *key, kvr_value *val) {
+static void unpack_value(char *src, kvr_key *key, kvr_value *val) {
     uint8_t key_len = *((uint8_t*)src);
     if (key != NULL) {
         key->length = key_len;
         key->key = src+KEY_SIZE_BYTES;
     }
-    val->length = val_len-key_len-KEY_SIZE_BYTES;
-    val->val = src+KEY_SIZE_BYTES+key_len;
+    val->length = *((uint32_t *)(src+KEY_SIZE_BYTES+key_len));
+    val->val = src+KEY_SIZE_BYTES+key_len+VAL_SIZE_BYTES;
 }
 
 static void on_bulk_write_complete(void *arg) {
@@ -431,7 +435,7 @@ void KVRaid::DoReclaim(int slab_id) {
         for (int i = 0; i < count; i++) {
             kvr_key *mv_key = new kvr_key;
             kvr_value *mv_val = new kvr_value;
-            unpack_value(kvs[i]->pval->c_val, kvs[i]->pval->val_len, mv_key, mv_val);
+            unpack_value(kvs[i]->pval->c_val, mv_key, mv_val);
             kvr_context* kvr_ctx = new kvr_context(KVR_REPLACE, mv_key, mv_val, kvs[i]);
             slab->q.enqueue(kvr_ctx);
             kvr_ctx_vec.push_back(kvr_ctx);
@@ -612,18 +616,20 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     ssds_[dev_idx].kv_get(&pkey, &pval);
 
     kvr_value new_val;
-    unpack_value(pval.c_val, pval.actual_len, NULL, &new_val);
+    unpack_value(pval.c_val, NULL, &new_val);
 
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);
-    memcpy(value->val, actual_val+key->length+KEY_SIZE_BYTES, value->length);
+    memcpy(value->val, new_val.val, new_val.length);
 
     free(actual_val);
 
     return true;
 }
 
-
+bool KVRaid::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
+    return true;
+}
 
 bool KVRaid::kvr_write_batch(WriteBatch *batch) {
     std::vector<kvr_context*> kvr_ctx_vec;
@@ -675,10 +681,10 @@ void KVRaid::KVRaidIterator::retrieveValue(int userkey_len, std::string &retriev
     ssds_[dev_idx].kv_get(&pkey, &pval);
 
     kvr_value new_val;
-    unpack_value(pval.c_val, pval.actual_len, NULL, &new_val);
+    unpack_value(pval.c_val, NULL, &new_val);
 
     value.clear();
-    value.append(actual_val+userkey_len+KEY_SIZE_BYTES, new_val.length);
+    value.append(new_val.val, new_val.length);
     free(actual_val);
 }
 

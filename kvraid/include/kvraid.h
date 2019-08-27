@@ -241,7 +241,7 @@ private:
     int64_t get_volume() {return data_volume_.load();}
 
     // dev_info
-    int64_t get_capacity() {return ssds_[0].get_capacity()*k_;}
+    int64_t get_capacity() {return ssds_[0].get_capacity();}
     int64_t get_usage() {return int64_t((double)get_util()*get_capacity());}
     double get_util() {
         double util = 0;
@@ -332,8 +332,8 @@ public:
 	bool kvr_update(kvr_key *key, kvr_value *value);
     bool kvr_delete(kvr_key *key);
 	bool kvr_get(kvr_key *key, kvr_value *value);
+    bool kvr_erased_get(int erased, kvr_key *key, kvr_value *value);
 
-    
     bool kvr_write_batch(WriteBatch *batch);
     // void kvr_stats(double &slab_overhead, double &occup_capacity, double &invalid_capacity);
     // void kvr_gc_stats(double &gc_efficiency);
