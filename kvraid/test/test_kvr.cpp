@@ -157,6 +157,25 @@ void get(KVR *kvr, int num, int tid) {
     delete [] vals;
 }
 
+void erased_get(KVR *kvr, int num, int tid) {
+    kvr_key *keys = new kvr_key[num];
+    kvr_value *vals = new kvr_value[num];
+    for (int i = 0; i < num; i++) {
+        char key[100];
+        snprintf(key, sizeof(key), "%016d", i);
+
+        keys[i].key =key;
+        keys[i].length = 16;
+        vals[i].val = NULL;
+        kvr->kvr_erased_get(5, &keys[i], &vals[i]);
+        printf("[erased_get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
+        free(vals[i].val);
+    }
+
+    delete [] keys;
+    delete [] vals;
+}
+
 void seek (KVR *kvr, int skey) {
   Iterator *it = kvr->NewIterator();
   kvr_key seekkey;
@@ -217,10 +236,20 @@ int main() {
     // printf("finish iteraotr test\n\n");
 
     for (int i = 0; i< thread_cnt; i++) {
-      if (i%2 == 0)
+        th_get[i] = new std::thread(erased_get, kvr, 100 , i);
+    }
+
+    for (int i = 0; i< thread_cnt; i++) {
+        th_get[i]->join();
+    }
+
+    printf("finish erased_get test\n\n");
+
+    for (int i = 0; i< thread_cnt; i++) {
+      if (i%2 == 1)
         th_update[i] = new std::thread(update, kvr, 10000, false, i);
       else
-        th_update[i] = new std::thread(get, kvr, 10000, i);
+        th_update[i] = new std::thread(get, kvr, 100, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
