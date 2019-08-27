@@ -76,7 +76,7 @@ public:
     int scan_pointer_;
     
     DeleteQ() : count_(0){}
-    DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(m), count_(0){}
+    DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(k_), count_(0){}
     ~DeleteQ(){}
     void insert(uint64_t index);
     void scan (int min_num_invalids, std::vector<uint64_t>& reclaims, 
@@ -183,10 +183,9 @@ public:
     int dq_size() {return delete_q.size();}
 
     int get_dev_idx (uint64_t seq) {
-        int group_size = k_+r_;
-        uint64_t group_id = seq/group_size;
-        int id = seq%group_size;
-        return ((group_id%group_size) + id) % group_size;
+        uint64_t group_id = seq/k_;
+        int id = seq%k_;
+        return ((group_id%(k_+r_)) + id) % (k_+r_);
     }
     void shutdown_workers() {
         for (int i = 0; i < num_pq_; i++) { 
