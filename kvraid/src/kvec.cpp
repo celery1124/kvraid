@@ -445,6 +445,12 @@ bool KVEC::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         value->val = (char*)malloc(slab_size_);
         unpack_value(data[logic_erased], value);
 
+        for (int i = 0; i < k_; i++) free(data[i]);
+        for (int i = 0; i < r_; i++) free(codes[i]);
+        free(data);
+        free(codes);
+        free(pkeys_c);
+        free(pvals_c);
     }
     else {
         char *get_val_buf = (char *)malloc(slab_list_[slab_id]);
