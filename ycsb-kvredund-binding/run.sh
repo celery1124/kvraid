@@ -7,14 +7,12 @@ result_dir=$HOME/$2
 mkdir -p $result_dir
 rm *.log # remove uncessary files
 
-threads="8"
+threads="32"
 #tests="evalf"
-tests="evala evalb evalc evald evale evalf"
+tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant
+			evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
-
-# clean remaining log file in any
-rm -rf *.log
 
 for exp_id in $( seq 1 $numofexp )
 do
