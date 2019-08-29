@@ -566,22 +566,30 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
     pack_value(pack_val, key, value);
     kvr_value new_value = {pack_val, actual_vlen};
 
+    std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+
     // write to the context queue
     kvr_context kvr_ctx(KVR_UPDATE, key, &new_value);
     slab->q.enqueue(&kvr_ctx);
-
-    data_volume_.fetch_add(slab_list_[slab_id]*k_/r_, std::memory_order_relaxed);
 
     //wait for IOs finish
     {
         std::unique_lock<std::mutex> lck(kvr_ctx.mtx);
         while (!kvr_ctx.ready) kvr_ctx.cv.wait(lck);
     }
+
+    req_key_fl_.UnLock(skey, l);
+
+    data_volume_.fetch_add(slab_list_[slab_id]*k_/r_, std::memory_order_relaxed);
+
     free(pack_val);
     return true;
 }
 bool KVRaid::kvr_delete(kvr_key *key) {
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+    
     phy_key pkey;
     // update log->phy translation table
     bool exist = key_map_->lookup(&skey, &pkey);
@@ -596,9 +604,15 @@ bool KVRaid::kvr_delete(kvr_key *key) {
     SlabQ *slab = &slabs_[slab_id];
     slab->dq_insert(pkey.get_seq());
 
+    req_key_fl_.UnLock(skey, l);
+
+    return true;
+
 }
 bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+
     phy_key pkey;
     // lookup log->phy translation table
     bool exist;
@@ -620,6 +634,8 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     phy_val pval(actual_val, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     ssds_[dev_idx].kv_get(&pkey, &pval);
+
+    req_key_fl_.UnLock(skey, l);
 
     kvr_value new_val;
     unpack_value(pval.c_val, NULL, &new_val);

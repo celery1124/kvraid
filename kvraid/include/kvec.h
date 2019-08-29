@@ -42,21 +42,22 @@ public:
     void UnLock() {m_.unlock();}
 };
 
+template <class T>
 class FineLock {
 private:
     std::mutex m_;
-    std::unordered_map<uint64_t, LockEntry *> lock_map_;
+    std::unordered_map<T, LockEntry *> lock_map_;
 public:
     FineLock (){};
     ~FineLock (){};
-    LockEntry* Lock (uint64_t gid) {
+    LockEntry* Lock (T id) {
         LockEntry *l;
         {
             std::unique_lock<std::mutex> lock(m_);
-            auto it = lock_map_.find(gid);
+            auto it = lock_map_.find(id);
             if(it == lock_map_.end()) {
                 l = new LockEntry;
-                lock_map_[gid] = l;
+                lock_map_[id] = l;
                 l->Ref();
             }
             else {
@@ -68,13 +69,13 @@ public:
         l->Lock();
         return l;
     }
-    void UnLock (uint64_t gid, LockEntry* l) {
+    void UnLock (T id, LockEntry* l) {
         l->UnLock();
         {
             std::unique_lock<std::mutex> lock(m_);
             if (l->UnRef() == true) {
                 delete l;
-                lock_map_.erase(gid);
+                lock_map_.erase(id);
             }
         }
     }
@@ -124,7 +125,7 @@ private:
     // ec 
     EC *ec_;
     // fine lock (on group id granularity)
-    FineLock fl_;
+    FineLock<uint64_t> fl_;
     // seq generator
     uint64_t seq_;
     std::queue<uint64_t> avail_seq_; 
@@ -175,6 +176,9 @@ private:
     // slabs
     SlabQ *slabs_;
 	int kvr_get_slab_id(int size);
+
+    // finelock on user key
+    FineLock<std::string> req_key_fl_;
 
     // data volume info
     std::atomic<int64_t> data_volume_; //estimate data vol, not accurate

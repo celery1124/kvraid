@@ -62,6 +62,61 @@ public:
     ~kvr_context() {}
 } ;
 
+class LockEntry {
+private:
+    std::mutex m_;
+    int ref_cnt_;
+public:
+    LockEntry() : ref_cnt_(0) {};
+    ~LockEntry() {};
+    void Ref() {ref_cnt_++;}
+    bool UnRef() {
+        ref_cnt_--;
+        return ref_cnt_ == 0;
+    }
+    void Lock() {m_.lock();}
+    void UnLock() {m_.unlock();}
+};
+
+template <class T>
+class FineLock {
+private:
+    std::mutex m_;
+    std::unordered_map<T, LockEntry *> lock_map_;
+public:
+    FineLock (){};
+    ~FineLock (){};
+    LockEntry* Lock (T id) {
+        LockEntry *l;
+        {
+            std::unique_lock<std::mutex> lock(m_);
+            auto it = lock_map_.find(id);
+            if(it == lock_map_.end()) {
+                l = new LockEntry;
+                lock_map_[id] = l;
+                l->Ref();
+            }
+            else {
+                l = it->second;
+                l->Ref();
+            }
+        }
+
+        l->Lock();
+        return l;
+    }
+    void UnLock (T id, LockEntry* l) {
+        l->UnLock();
+        {
+            std::unique_lock<std::mutex> lock(m_);
+            if (l->UnRef() == true) {
+                delete l;
+                lock_map_.erase(id);
+            }
+        }
+    }
+};
+
 class SlabQ; // forward declare
 class DeleteQ
 {
@@ -220,6 +275,9 @@ private:
 
     // slabs
     SlabQ *slabs_;
+
+    // finelock on request key
+    FineLock<std::string> req_key_fl_;
 
     // GC thread
     std::thread thrd;

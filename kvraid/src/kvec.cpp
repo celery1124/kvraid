@@ -319,6 +319,8 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
     // lookup mapping table
     phy_key pkey;
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+
     key_map_->lookup(&skey, &pkey);
 
     int slab_id = kvr_get_slab_id(packed_val_len);
@@ -338,11 +340,15 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
         old_slab->slab_delete(&pkey);
     }
 
+    req_key_fl_.UnLock(skey, l);
+
     free(val_buf);
     return true;
 }
 bool KVEC::kvr_delete(kvr_key *key) {
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+
     phy_key pkey;
     // update log->phy translation table
     bool exist = key_map_->lookup(&skey, &pkey);
@@ -358,10 +364,14 @@ bool KVEC::kvr_delete(kvr_key *key) {
     slab->slab_delete(&pkey);
     slab->reclaim_index(pkey.get_seq());
 
+    req_key_fl_.UnLock(skey, l);
+    return true;
 }
 
 bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+    
     phy_key pkey;
     // lookup log->phy translation table
     bool exist = key_map_->lookup(&skey, &pkey);
@@ -379,6 +389,8 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
     phy_val pval(get_val_buf, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     ssds_[dev_idx].kv_get(&pkey, &pval);
+
+    req_key_fl_.UnLock(skey, l);
 
     value->val = (char*)malloc(slab_list_[slab_id]);
     unpack_value(get_val_buf, value);
