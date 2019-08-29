@@ -417,6 +417,9 @@ namespace kvssd {
 
       //clean up
       delete [] mons;
+      for (int i = 0; i < k_ ; i++) free(data[i]);
+      for (int i = 0; i < r_ ; i++) free(code[i]);
+      free(data); free(code);
       free(vals);
     }
     return KVS_SUCCESS;
@@ -456,6 +459,7 @@ namespace kvssd {
       delete [] mons;
       delete [] vlens;
       free(ctxs);
+      for (int i = 0; i < k_; i++) free(vbufs[i]);
       free(vbufs);
     }
     return KVS_SUCCESS;
