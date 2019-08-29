@@ -160,7 +160,7 @@ namespace kvssd {
     const kvs_retrieve_context ret_ctx = {option, 0, 0};
     kvs_result ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &ret_ctx);
     stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
-    if(ret != KVS_SUCCESS) {
+    if(ret == KVS_SUCCESS|| ret==KVS_ERR_KEY_NOT_EXIST) {
       return ret;
     }
     //if (ret == KVS_ERR_BUFFER_SMALL) { // do anther IO KVS_ERR_BUFFER_SMALL not working
