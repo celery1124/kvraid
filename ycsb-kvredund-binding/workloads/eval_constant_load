@@ -13,11 +13,12 @@
 # permissions and limitations under the License. See accompanying                                                                                                                 
 # LICENSE file.                                                                                                                                                                   
 
+
 # Yahoo! Cloud System Benchmark
-# Workload C: Read only
-#   Application example: user profile cache, where profiles are constructed elsewhere (e.g., Hadoop)
+# Workload A: Update heavy workload
+#   Application example: Session store recording recent actions
 #                        
-#   Read/update ratio: 100/0
+#   Read/update ratio: 50/50
 #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
 #   Request distribution: zipfian
 
@@ -27,18 +28,15 @@ workload=com.yahoo.ycsb.workloads.CoreWorkload
 
 fieldcount=1
 fieldlength=2000
-fieldlengthdistribution=uniform
-minfieldlength=500
+fieldlengthdistribution=constant
 
 readallfields=true
 writeallfields=true
 
-readproportion=1
-updateproportion=0
+readproportion=0.5
+updateproportion=0.5
 scanproportion=0
 insertproportion=0
 
 requestdistribution=zipfian
-
-
 

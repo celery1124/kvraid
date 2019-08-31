@@ -28,6 +28,7 @@
 
 recordcount=100000000
 operationcount=1000000
+minfieldlength=500
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
 fieldcount=1
