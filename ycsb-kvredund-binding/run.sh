@@ -73,7 +73,7 @@ do
 
 					for testfile in $tests
 					do
-						wl=$testfile_$v_dis
+						wl=${testfile}_${v_dis}
 						echo ===== workload $wl ====== >> $result_txt
 						echo "" >> $result_txt
 						# ycsb run 
