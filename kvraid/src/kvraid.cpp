@@ -194,6 +194,8 @@ static void on_bulk_write_complete(void *arg) {
     }
 
     // free memory
+    for (int i = 0; i < bulk_io_ctx->code_num; i++) free(bulk_io_ctx->code_buf[i]);
+    free(bulk_io_ctx->code_buf);
     free(bulk_io_ctx->keys);
     free(bulk_io_ctx->vals);
     delete [] (bulk_io_ctx->kvr_ctxs);
@@ -267,10 +269,17 @@ void SlabQ::processQ(int id) {
             } 
             ec_->encode(data_, code_, slab_size_);
 
+            // allocate code buffer
+            char **code_buf = (char **)malloc(sizeof(char *)*r_);
+            for (int i = 0; i < r_; i++) {
+                code_buf[i] = (char *)malloc(slab_size_);
+                memcpy(code_buf[i], code_[i], slab_size_);
+            }
+
             // prepare bulk_io_context
             uint64_t unique_id = group_id*k_+total_count;
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {unique_id, count + r_, count, kvr_ctxs, pkeys, pvals, this};
+            {unique_id, count + r_, count, kvr_ctxs, pkeys, pvals, r_, code_buf, this};
 
             // write to index map
             dev_idx = (dev_idx_start+total_count) % (k_+r_);
@@ -321,7 +330,8 @@ void SlabQ::processQ(int id) {
                 }
 
                 if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-                    dq_insert(stale_key.get_seq());
+                    int del_slab_id = stale_key.get_slab_id();
+                    parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
                 }
                 // write data
                 (void) new (&pvals[i]) phy_val(kvr_ctxs[i]->value->val, kvr_ctxs[i]->value->length);
@@ -334,7 +344,7 @@ void SlabQ::processQ(int id) {
             for (int j = 0; j < r_; j++) {
                 int i = j+count;
                 (void) new (&pkeys[i]) phy_key(sid_, group_id*k_);
-                (void) new (&pvals[i]) phy_val(code_[j], slab_size_);
+                (void) new (&pvals[i]) phy_val(code_buf[j], slab_size_);
 
                 parent_->ssds_[dev_idx].kv_astore(&pkeys[i], &pvals[i], on_bulk_write_complete, (void*)bulk_io_ctx);
                 //printf("insert [ssd %d] group_id %d pkey %lu\n",dev_idx, group_id, pkeys[i].get_seq());

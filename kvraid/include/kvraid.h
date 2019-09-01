@@ -148,6 +148,8 @@ typedef struct {
     kvr_context **kvr_ctxs;
     phy_key *keys;
     phy_val *vals;
+    int code_num;
+    char **code_buf;
     SlabQ *q;
 } bulk_io_context;
 
