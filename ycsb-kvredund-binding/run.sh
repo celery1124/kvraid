@@ -10,7 +10,7 @@ rm *.log # remove uncessary files
 threads="32"
 #tests="evalf"
 val_dis="constant uniform"
-tests="evala evalb evalc evald evale evalf"
+tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 
