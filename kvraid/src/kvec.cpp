@@ -216,7 +216,7 @@ bool SlabQ::slab_update(kvr_value *value, phy_key *pkey) {
     free(codes);
 }
 
-bool SlabQ::slab_delete(phy_key *pkey) {
+bool SlabQ::slab_delete(kvr_key *key, phy_key *pkey) {
     uint64_t index_id = pkey->get_seq();
     uint64_t group_id, group_offset;
     group_id = index_id/k_;
@@ -273,6 +273,10 @@ bool SlabQ::slab_delete(phy_key *pkey) {
     // wait for write ios
     mon_d.wait();
     for (int i = 0; i < r_; i++) mons_c[i].wait();
+
+    // update mapping table
+    std::string skey = std::string(key->key, key->length);
+    parent_->key_map_->erase(&skey);
 
     fl_.UnLock(group_id, l);
 
@@ -336,8 +340,8 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
     else { // insert + delete
         SlabQ *new_slab = &slabs_[slab_id];
         SlabQ *old_slab = &slabs_[pkey.get_slab_id()];
+        old_slab->slab_delete(key, &pkey);
         new_slab->slab_insert(key, &packed_value);
-        old_slab->slab_delete(&pkey);
     }
 
     req_key_fl_.UnLock(skey, l);
@@ -356,12 +360,12 @@ bool KVEC::kvr_delete(kvr_key *key) {
         printf("[KVRaid::kvr_delete] logical key not exist\n");
         exit(-1);
     }
-    key_map_->erase(&skey);
+    //key_map_->erase(&skey);
 
     // insert to delete queue
     int slab_id = pkey.get_slab_id();
     SlabQ *slab = &slabs_[slab_id];
-    slab->slab_delete(&pkey);
+    slab->slab_delete(key, &pkey);
     slab->reclaim_index(pkey.get_seq());
 
     req_key_fl_.UnLock(skey, l);

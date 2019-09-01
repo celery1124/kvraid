@@ -140,7 +140,7 @@ private:
     void reclaim_index(uint64_t index);
     bool slab_insert(kvr_key *key, kvr_value *value);
     bool slab_update(kvr_value *value, phy_key *pkey);
-    bool slab_delete(phy_key *pkey);
+    bool slab_delete(kvr_key *key, phy_key *pkey);
 
 public:
     int get_id() {return sid_;}
