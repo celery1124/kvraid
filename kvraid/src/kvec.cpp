@@ -341,6 +341,7 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
         SlabQ *new_slab = &slabs_[slab_id];
         SlabQ *old_slab = &slabs_[pkey.get_slab_id()];
         old_slab->slab_delete(key, &pkey);
+        old_slab->reclaim_index(pkey.get_seq());
         new_slab->slab_insert(key, &packed_value);
     }
 

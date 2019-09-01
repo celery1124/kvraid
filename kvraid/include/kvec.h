@@ -99,11 +99,11 @@ public:
   }
 
   void set(uint64_t index) {
-    if (index/8 >= size_ - 1) resize(size_*2);
+    while (index/8 >= size_ - 1) resize(size_*2);
     bm[index / 8] = bm[index / 8] | (1 << (index % 8));
   }
   void reset(uint64_t index) {
-    if (index/8 >= size_ - 1) resize(size_*2);
+    while (index/8 >= size_ - 1) resize(size_*2);
     bm[index / 8] = bm[index / 8] & (~(1 << (index % 8)));
   }
 
@@ -130,9 +130,6 @@ private:
     uint64_t seq_;
     std::queue<uint64_t> avail_seq_; 
     std::mutex seq_mutex_;
-    // bit map for group_id
-    BitMap group_occu_;
-    std::mutex bm_mutex_;
 
     pthread_t t_PQ;
 
@@ -143,6 +140,10 @@ private:
     bool slab_delete(kvr_key *key, phy_key *pkey);
 
 public:
+    // bit map for group_id
+    BitMap group_occu_;
+    std::mutex bm_mutex_;
+
     int get_id() {return sid_;}
     SlabQ(KVEC *p, int id, int size, int num_d, int num_r, EC *ec) : 
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), ec_(ec), seq_(0), group_occu_(1024) {
@@ -225,6 +226,15 @@ public:
         for (int i = 0; i < num_slab; i++) {
             slab_list_[i] = s_list[i];
             (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_);
+        }
+
+        // restore bitmap in slabQ
+        MapIterator *it = key_map_->NewMapIterator();
+        for (it->SeekToFirst();it->Valid();it->Next()) {
+            std::string retrieveKey = it->Value();
+            phy_key pkey;
+            pkey.decode(&retrieveKey);
+            slabs_[pkey.get_slab_id()].group_occu_.set(pkey.get_seq()/k_);
         }
 	}
 
