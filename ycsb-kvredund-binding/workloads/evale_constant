@@ -37,6 +37,7 @@ fieldlengthdistribution=constant
 readallfields=true
 writeallfields=true
 
+table=t
 readproportion=0
 updateproportion=0
 scanproportion=0.95
