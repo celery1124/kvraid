@@ -224,11 +224,13 @@ public:
         }
     };
     StorageMap(KVS_CONT *conts, int k, int r) {
-        //cache_ = leveldb::NewLRUCache(4194304);
-        cache_ = NULL;
+        cache_ = leveldb::NewLRUCache(1073741824);
+        //cache_ = NULL;
         options.create_if_missing = true;
         options.block_cache = cache_;
-        options.max_open_files = 1000;
+        options.max_open_files = 100000;
+	options.max_file_size = 500 << 10;
+
         options.filter_policy = NULL;
         options.reuse_logs = true;
 
