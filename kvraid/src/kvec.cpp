@@ -247,11 +247,6 @@ bool SlabQ::slab_delete(kvr_key *key, phy_key *pkey) {
         parent_->ssds_[dev_idx].kv_aget(&pkeys_c[i], &pvals_c[i], on_io_complete, (void *)&mons_c[i]);
     }
 
-
-    // delete data from device (sync call)
-    dev_idx = get_dev_idx(group_id, group_offset);
-    parent_->ssds_[dev_idx].kv_delete(&pkey_d);
-
     // wait get ios completes
     mon_d.wait();
     for (int i = 0; i < r_; i++) mons_c[i].wait();
@@ -259,19 +254,17 @@ bool SlabQ::slab_delete(kvr_key *key, phy_key *pkey) {
     // update codes
     ec_->update(group_offset, data_old, data_new, codes, slab_size_);
 
-    // write data and codes to devices
-    mon_d.reset();
-    dev_idx = get_dev_idx(group_id, group_offset);
-    parent_->ssds_[dev_idx].kv_astore(&pkey_d, &pval_d, on_io_complete, (void *)&mon_d);
-
     for (int i = 0; i < r_; i++) {
         mons_c[i].reset();
         dev_idx = get_dev_idx(group_id, k_+i);
         parent_->ssds_[dev_idx].kv_astore(&pkeys_c[i], &pvals_c[i], on_io_complete, (void *)&mons_c[i]);
     }
 
+    // delete data from device (sync call)
+    dev_idx = get_dev_idx(group_id, group_offset);
+    parent_->ssds_[dev_idx].kv_delete(&pkey_d);
+
     // wait for write ios
-    mon_d.wait();
     for (int i = 0; i < r_; i++) mons_c[i].wait();
 
     // update mapping table
