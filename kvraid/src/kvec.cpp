@@ -516,7 +516,7 @@ void KVEC::save_meta() {
     for (int i = 0; i < num_slab_; i++) {
         int num_avail_seq = slabs_[i].avail_seq_.size();
         meta_val.append((char *)&num_avail_seq, sizeof(num_avail_seq)); // num of avail seq
-        for (int i = 0 ; i < num_avail_seq; i++) {
+        while (!slabs_[i].avail_seq_.empty()) {
             uint64_t avail_seq = slabs_[i].avail_seq_.front();
             meta_val.append((char *)&avail_seq, sizeof(avail_seq));
             slabs_[i].avail_seq_.pop();
@@ -546,7 +546,7 @@ bool KVEC::load_meta(int size) {
     for (int i = 0; i < size; i++) {
         int num_avail_seq = *(int *)p;
         p += sizeof(int);
-        for (int i = 0 ; i < num_avail_seq; i++) {
+        for (int j = 0 ; j < num_avail_seq; j++) {
             int avail_seq = *(uint64_t *)p;
             p += sizeof(uint64_t);
             slabs_[i].avail_seq_.push(avail_seq);
