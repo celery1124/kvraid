@@ -301,6 +301,9 @@ bool KVEC::kvr_insert(kvr_key *key, kvr_value *value) {
     int slab_id = kvr_get_slab_id(packed_val_len);
     SlabQ *slab = &slabs_[slab_id];
 
+    std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
+
     // pack value with val_len
     char *val_buf = (char *)malloc(packed_val_len);
     pack_value(val_buf, value);
@@ -308,6 +311,7 @@ bool KVEC::kvr_insert(kvr_key *key, kvr_value *value) {
     // insert to slab
     slab->slab_insert(key, &packed_value);
 
+    req_key_fl_.UnLock(skey, l);
     free(val_buf);
     return true;
 }
@@ -503,6 +507,54 @@ void KVEC::KVECIterator::retrieveValue(int userkey_len, std::string &retrieveKey
     value.append(get_val.val, get_val.length);
     free(actual_val);
     free(get_val.val);
+}
+
+void KVEC::save_meta() {
+    std::string meta_key = "KVEC_meta";
+    std::string meta_val;
+    meta_val.append((char *)&num_slab_, sizeof(num_slab_)); // num_slabs
+    for (int i = 0; i < num_slab_; i++) {
+        int num_avail_seq = slabs_[i].avail_seq_.size();
+        meta_val.append((char *)&num_avail_seq, sizeof(num_avail_seq)); // num of avail seq
+        for (int i = 0 ; i < num_avail_seq; i++) {
+            uint64_t avail_seq = slabs_[i].avail_seq_.front();
+            meta_val.append((char *)&avail_seq, sizeof(avail_seq));
+            slabs_[i].avail_seq_.pop();
+        }
+        uint64_t seq = slabs_[i].get_curr_seq();
+        meta_val.append((char *)&seq, sizeof(uint64_t)); // group_id per slab
+    }
+    for (int i = 0; i < r_; i++)
+        ssds_[i].kv_store(&meta_key, &meta_val); // mirror to num_r devs
+}
+    
+bool KVEC::load_meta(int size) {
+    std::string meta_key = "KVEC_meta";
+    std::string meta_val;
+    ssds_[0].kv_get(&meta_key, &meta_val); // only access dev_0;
+    if (meta_val.size() == 0) {
+        return false; // no meta;
+    }
+
+    char *p = (char *)meta_val.c_str();
+    int num_slabs = *(int *)p;
+    p += sizeof(int);
+    if (num_slabs != size) {
+        printf("number of slabs not same as last open, exit\n");
+        exit(-1);
+    }
+    for (int i = 0; i < size; i++) {
+        int num_avail_seq = *(int *)p;
+        p += sizeof(int);
+        for (int i = 0 ; i < num_avail_seq; i++) {
+            int avail_seq = *(uint64_t *)p;
+            p += sizeof(uint64_t);
+            slabs_[i].avail_seq_.push(avail_seq);
+        }
+        slabs_[i].seq_ = *(uint64_t *)p;
+        p += sizeof(uint64_t);
+    }
+    return true;
 }
 
 

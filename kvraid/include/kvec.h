@@ -134,6 +134,7 @@ private:
     pthread_t t_PQ;
 
     void get_index_id(uint64_t *index);
+    uint64_t get_curr_seq() {return seq_;}
     void reclaim_index(uint64_t index);
     bool slab_insert(kvr_key *key, kvr_value *value);
     bool slab_update(kvr_value *value, phy_key *pkey);
@@ -198,6 +199,9 @@ private:
         for(int i = 0; i<k_+r_; i++) waf += ssds_[i].get_waf();
         return waf/(k_+r_);
     }
+
+    void save_meta();
+    bool load_meta(int size);
     
 public:
 	KVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
