@@ -231,6 +231,15 @@ public:
             slab_list_[i] = s_list[i];
             (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_);
         }
+        
+        // restore slab state
+        bool newdb = !load_meta(num_slab);
+        if (newdb) {
+            printf("Clean KVEC initialized\n");
+        }
+        else {
+            printf("Restore existing KVEC\n");
+        }
 
         // restore bitmap in slabQ
         MapIterator *it = key_map_->NewMapIterator();
@@ -243,6 +252,8 @@ public:
 	}
 
 	~KVEC() {
+        // save KVEC state
+        save_meta();
         for (int i = 0; i < (k_+r_); i++) {
             ssds_[i].~KV_DEVICE();
         }
