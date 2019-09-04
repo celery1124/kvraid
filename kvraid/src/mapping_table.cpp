@@ -242,8 +242,8 @@ public:
         }
     }
     ~StorageMap() {
-        delete cache_;
         delete db_;
+        delete cache_;
         delete options.env;
     }
     bool lookup(std::string *key, phy_key *val) {
