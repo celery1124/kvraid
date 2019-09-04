@@ -259,6 +259,9 @@ public:
         }
         free(ssds_);
 		delete[] slab_list_;
+        for (int i = 0; i < num_slab_; i++) {
+            slabs_[i].~SlabQ();
+        }
         free(slabs_);
         delete key_map_;
 	}
