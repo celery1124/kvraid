@@ -97,6 +97,22 @@ public:
         return exist;
     }
 
+    bool readtestupdate(std::string* key, phy_key* rd_val, phy_key* old_val, phy_key* new_val) {
+        bool match;
+        std::unique_lock<std::mutex> lock(mutex_);
+        auto it = key_map_.find(*key);
+        assert(it != key_map_.end());
+        *rd_val = it->second;
+        match = (*rd_val == *old_val);
+        if (match) { // active KV not being updated
+            key_map_[*key] = *new_val;
+        }
+        else { // active KV got updated before REPLACE
+            printf("rare case when doing GC\n"); // TODO
+        }
+        return match;
+    }
+
     void insert(std::string *key, phy_key *val) {
         std::unique_lock<std::mutex> lock(mutex_);
         key_map_.insert(std::make_pair(*key, *val));
@@ -283,6 +299,26 @@ public:
             db_->Write(write_options_, &batch);
         }
         return exist;
+    }
+
+    bool readtestupdate(std::string* key, phy_key* rd_val, phy_key* old_val, phy_key* new_val) {
+        bool match;
+        leveldb::ReadOptions options;
+        std::string value;
+        assert(db_->Get(options, leveldb::Slice(*key), &value).ok());
+        rd_val->decode(&value);
+        match = (*rd_val == *old_val);
+        if (match) { // active KV not being updated
+            // update
+            leveldb::WriteBatch batch;
+            std::string val_s = new_val->ToString();
+            batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
+            db_->Write(write_options_, &batch);
+        }
+        else { // active KV got updated before REPLACE
+            printf("rare case when doing GC\n"); // TODO
+        }
+        return match;
     }
 
     void insert(std::string *key, phy_key *val) {

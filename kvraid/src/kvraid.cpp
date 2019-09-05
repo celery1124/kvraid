@@ -300,14 +300,12 @@ void SlabQ::processQ(int id) {
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
                     // replace
-                    phy_key tmp;
-                    //std::unique_lock<std::mutex> lock(parent_->idx_mutex_);
-                    bool exist = parent_->key_map_->lookup(&skey, &tmp);
-                    if (exist && tmp == *(kvr_ctxs[i]->kv_ctx->pkey)) {
-                        parent_->key_map_->update(&skey, &pkeys[i]);
-                    }
-                    else { // reclaimed kv got updated/deleted (rare)
+                    phy_key rd_pkey;
+                    bool match;
+                    match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
+                    if (!match) { // reclaimed kv got updated/deleted (rare)
                         // we need to update the deleteQ
+                        int sid = kvr_ctxs[i]->kv_ctx->pkey->get_slab_id();
                         delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
                         dq_insert(pkeys[i].get_seq());
                         
