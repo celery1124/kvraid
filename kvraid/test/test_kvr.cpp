@@ -12,6 +12,7 @@
 
 #define thread_cnt 8
 #define OBJ_LEN 512+256
+#define DEV_CAP 107374182400
 
 class Random {
  private:
@@ -206,12 +207,12 @@ int main() {
     kvs_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
     for (int i = 0; i < num_ssds; i++) {
       std::string dev_name = "/dev/kvemul" + std::to_string(i);
-      (void) new (&kvs_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64);
+      (void) new (&kvs_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64, DEV_CAP);
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
-    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
     std::thread *th_load[16];
@@ -229,8 +230,8 @@ int main() {
 
     // close kvr and open again (for testing)
     delete kvr; 
-    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
 
     // seek(kvr, 19);
     // printf("finish iteraotr test\n\n");

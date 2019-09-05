@@ -1020,7 +1020,7 @@ int main(int argc, char** argv) {
   }
   KVS_CONT *kvs_conts = (KVS_CONT *)malloc(sizeof(KVS_CONT) * 6);
   for (int i = 0; i < 6; i++) {
-    (void) new (&kvs_conts[i]) KVS_CONT("/dev/kvemul", 64);
+    (void) new (&kvs_conts[i]) KVS_CONT("/dev/kvemul", 64, 107374182400);
   }
   leveldb::g_env = leveldb::NewKVEnv(leveldb::Env::Default(), kvs_conts, 4, 2);
 

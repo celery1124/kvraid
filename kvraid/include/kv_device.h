@@ -43,7 +43,7 @@ public:
     KVS_CONT *cont_;
 
     // stats
-    // uint32_t capacity; //MB
+    int64_t log_capacity_; //B
     kvd_stats stats;
 
     // req queue (using thread pool)
@@ -51,10 +51,8 @@ public:
     // sem_t q_sem;
 
     KV_DEVICE(int id, KVS_CONT *kvs_cont, int thread_count, int queue_depth): 
-        dev_id(id), cont_(kvs_cont) {
-        //stats
-        // stats = { 0, 0, 0 };
-        // capacity = kvs_get_device_capacity(dev)/1024/1024;
+        dev_id(id), cont_(kvs_cont), log_capacity_() {
+        log_capacity_ = kvs_cont->get_log_capacity();
 
         // pool = threadpool_create(thread_count, queue_depth, 0, &q_sem);
         // sem_init(&q_sem, 0, queue_depth);
@@ -64,6 +62,7 @@ public:
         // sem_destroy(&q_sem);
         FILE *fd = fopen("kv_device.log","a");
         fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        fprintf(fd, "usage %.3f", (double)get_capacity()*get_util()/1024/1024);
         fclose(fd);
     };
 
@@ -80,6 +79,7 @@ public:
 
     void kv_scan_keys(std::vector<std::string> &keys); // for testing
 
+    int64_t get_log_capacity();
     int64_t get_capacity();
     double get_util();
     float get_waf();

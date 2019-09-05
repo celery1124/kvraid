@@ -33,6 +33,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         file_content = R"({"dev_mode":0,
         "num_data_nodes":4, "num_code_nodes":2, 
         "kvr_type":0, "meta_type":0, "slab_list":[256,512,768,1024,1280],
+        "dev_cap": 10737418240,
         "batch_Size":6})";
         printf("Using default kvredund config file\n");
     }
@@ -45,6 +46,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     int kvr_type = config["kvr_type"].int_value();
     int meta_type = config["meta_type"].int_value();
     json11::Json::array slab_array = config["slab_list"].array_items();
+    int64_t dev_cap = (int64_t)config["dev_cap"].number_value();
 	batch_size = config["batch_size"].int_value();
     int slab_size = slab_array.size();
     int *slab_list = new int[slab_size];
@@ -66,7 +68,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
             printf("dev_mode wrong, exit\n");
             exit(-1);
         }
-        (void) new (&kv_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64);
+        (void) new (&kv_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64, dev_cap);
         printf("[dev %d %s] opened\n",i,dev_name.c_str());
     }
     switch (kvr_type) {

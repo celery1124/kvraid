@@ -5,6 +5,7 @@
 #include "../include/kv_device.h"
 #include "../include/mapping_table.h"
 
+#define DEV_CAP 107374182400
 int main() {
     bool found = false;
     std::string skey = "1234";
@@ -22,7 +23,7 @@ int main() {
 
     KVS_CONT *conts = (KVS_CONT *)malloc(sizeof(KVS_CONT)*6);
     for (int i = 0; i < 6; i++) {
-        (void) new (&conts[i]) KVS_CONT("/dev/kvemul", 64);
+        (void) new (&conts[i]) KVS_CONT("/dev/kvemul", 64, DEV_CAP);
     }
     Map* storagemap = NewStorageMap(conts, 4, 2);
 

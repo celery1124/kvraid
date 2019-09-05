@@ -9,6 +9,7 @@
 
 #define thread_cnt 8
 #define OBJ_LEN 512+256
+#define DEV_CAP 107374182400
 
 using namespace kvec;
 
@@ -157,7 +158,7 @@ int main() {
     KVS_CONT* kvs_conts;
     kvs_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
     for (int i = 0; i < num_ssds; i++) {
-      (void) new (&kvs_conts[i]) KVS_CONT("/dev/kvemul", 64);
+      (void) new (&kvs_conts[i]) KVS_CONT("/dev/kvemul", 64, DEV_CAP);
     }
     //KVEC kvr(k, r, 1, slab_list, ssds);
     KVEC kvr(k, r, 1, slab_list, kvs_conts, Mem);

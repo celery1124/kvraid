@@ -1,10 +1,10 @@
-/* kvraid.h
-* 04/23/2019
+/* kvraid_pack.h
+* 08/29/2019
 * by Mian Qin
 */
 
-#ifndef   _kvraid_h_   
-#define   _kvraid_h_   
+#ifndef   _kvraid_pack_h_   
+#define   _kvraid_pack_h_   
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -27,7 +27,10 @@
 #define MAX_ENTRIES_PER_GC 1024
 #define MAX_SCAN_LEN_PER_GC 16384
 
-namespace kvraid {
+#define IDEAL_KV_PACK_SIZE 8192
+#define MAX_PACK_SIZE 4
+
+namespace kvraid_pack {
 
 typedef struct {
     phy_key* pkey;
@@ -148,8 +151,7 @@ typedef struct {
     kvr_context **kvr_ctxs;
     phy_key *keys;
     phy_val *vals;
-    int code_num;
-    char **code_buf;
+    char **val_buf;
     SlabQ *q;
 } bulk_io_context;
 
@@ -158,15 +160,16 @@ typedef struct {
     phy_key *key;
 } delete_io_context;
 
-class KVRaid; // forward declaration
+class KVRaidPack; // forward declaration
 class SlabQ {
 private:
-    KVRaid *parent_;
+    KVRaidPack *parent_;
     int sid_;
     // slab info
     int slab_size_;
-    int k_;
-    int r_;
+    int k_; // # of data dev
+    int r_; // # of code dev
+    int pack_size_; // # of KV (in slab_size) for packing
     // ec buffer
     EC *ec_;
     char **data_;
@@ -196,13 +199,15 @@ public:
 
     moodycamel::BlockingConcurrentQueue<kvr_context*> q;
     int get_id() {return sid_;}
-    SlabQ(KVRaid *p, int id, int size, int num_d, int num_r, EC *ec, uint64_t seq, int num_pq) : 
+    SlabQ(KVRaidPack *p, int id, int size, int num_d, int num_r, EC *ec, uint64_t seq, int num_pq) : 
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), 
     ec_(ec), seq_(seq), num_pq_(num_pq), delete_q(this, num_d, num_d+num_r) {
+        // calculate pack size (suppose slab size to 2^N)
+        pack_size_ = IDEAL_KV_PACK_SIZE / slab_size_ > MAX_PACK_SIZE ? MAX_PACK_SIZE : IDEAL_KV_PACK_SIZE / slab_size_;
         // alloacte ec buffer
         data_ = new char*[k_];
         code_ = new char*[r_];
-        int buffer_size = sizeof(char) * slab_size_;
+        int buffer_size = sizeof(char) * slab_size_ * pack_size_;
         for (int i = 0; i<k_; i++) {
             data_[i] = (char *) malloc(buffer_size);
         }
@@ -257,7 +262,7 @@ public:
 };
 
 
-class KVRaid : public KVR {
+class KVRaidPack : public KVR {
     friend class SlabQ;
 private:
 	int k_; // number of data nodes
@@ -273,6 +278,7 @@ private:
     
 	// key index
 	Map *key_map_; 
+    std::mutex idx_mutex_;
 
     // slabs
     SlabQ *slabs_;
@@ -300,11 +306,10 @@ private:
 
     // dev_info
     int64_t get_capacity() {return ssds_[0].get_capacity();}
-    int64_t get_log_capacity() {return ssds_[0].get_log_capacity();}
     int64_t get_usage() {return int64_t((double)get_util()*get_capacity());}
     double get_util() {
         double util = 0;
-        for(int i = 0; i<k_+r_; i++) util += (double)get_usage()/get_log_capacity();
+        for(int i = 0; i<k_+r_; i++) util += ssds_[i].get_util();
         return util/(k_+r_);
     }
     float get_waf() {
@@ -318,7 +323,7 @@ private:
     bool load_meta(uint64_t *arr, int size);
     
 public:
-	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
+	KVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
     k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), data_volume_(0){
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
@@ -328,14 +333,14 @@ public:
         for (int i = 0; i < (k_+r_); i++) {
             (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 256);
         }
-        // get KVRaid meta
+        // get KVRaidPack meta
         uint64_t *slab_seq = new uint64_t[num_slab];
         bool newdb = !load_meta(slab_seq, num_slab);
         if (newdb) {
-            printf("Clean KVRaid initialized\n");
+            printf("Clean KVRaidPack initialized\n");
         }
         else {
-            printf("Restore existing KVRaid\n");
+            printf("Restore existing KVRaidPack\n");
         }
 
         for (int i = 0; i < num_slab; i++) {
@@ -358,19 +363,19 @@ public:
 
         // GC thread
         shutdown_ = false;
-        thrd = std::thread(&KVRaid::bg_GC, this);
+        thrd = std::thread(&KVRaidPack::bg_GC, this);
         //t_GC = thrd.native_handle();
         //thrd.detach();
 	}
 
-	~KVRaid() {
+	~KVRaidPack() {
         shutdown_ = true;
         thrd.join();
         // shutdown slab workers
         for (int i = 0; i < num_slab_; i++) {
             slabs_[i].shutdown_workers();
         }
-        // save KVRaid state
+        // save KVRaidPack state
         save_meta();
 
         // clean up slab queues
@@ -400,13 +405,13 @@ public:
 public:
     class KVRaidIterator : public Iterator {
     private:
-        KVRaid *kvr_;
+        KVRaidPack *kvr_;
         MapIterator *it_;
         std::string curr_key_;
         std::string curr_val_;
         bool val_retrieved_;
     public:
-        KVRaidIterator(KVRaid *kvr) : kvr_(kvr), val_retrieved_(false) {
+        KVRaidIterator(KVRaidPack *kvr) : kvr_(kvr), val_retrieved_(false) {
             it_ = kvr_->key_map_->NewMapIterator();
         }
         ~KVRaidIterator() {delete it_;}
