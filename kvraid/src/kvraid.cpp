@@ -295,15 +295,13 @@ void SlabQ::processQ(int id) {
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
                     // update
-                    std::unique_lock<std::mutex> lock(parent_->idx_mutex_);
-                    parent_->key_map_->lookup(&skey, &stale_key);
-                    parent_->key_map_->update(&skey, &pkeys[i]);
+                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
                     // replace
                     phy_key tmp;
-                    std::unique_lock<std::mutex> lock(parent_->idx_mutex_);
+                    //std::unique_lock<std::mutex> lock(parent_->idx_mutex_);
                     bool exist = parent_->key_map_->lookup(&skey, &tmp);
                     if (exist && tmp == *(kvr_ctxs[i]->kv_ctx->pkey)) {
                         parent_->key_map_->update(&skey, &pkeys[i]);
@@ -625,11 +623,7 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
 
     phy_key pkey;
     // lookup log->phy translation table
-    bool exist;
-    {
-        std::unique_lock<std::mutex> lock(idx_mutex_);
-        exist = key_map_->lookup(&skey, &pkey);
-    }
+    bool exist = key_map_->lookup(&skey, &pkey);
     
     if (!exist) {
         printf("[KVRaid::kvr_get] logical key not exist\n");
@@ -687,11 +681,7 @@ bool KVRaid::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
     phy_key pkey;
     // lookup log->phy translation table
-    bool exist;
-    {
-        std::unique_lock<std::mutex> lock(idx_mutex_);
-        exist = key_map_->lookup(&skey, &pkey);
-    }
+    bool exist = key_map_->lookup(&skey, &pkey);
     
     if (!exist) {
         printf("[KVRaid::kvr_get] logical key not exist\n");

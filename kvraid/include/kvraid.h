@@ -273,7 +273,6 @@ private:
     
 	// key index
 	Map *key_map_; 
-    std::mutex idx_mutex_;
 
     // slabs
     SlabQ *slabs_;

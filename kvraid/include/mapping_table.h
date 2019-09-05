@@ -35,6 +35,7 @@ public:
 
     // define Map interface
     virtual bool lookup(std::string* key, phy_key* val) = 0;
+    virtual bool readmodifywrite(std::string* key, phy_key* rd_val, phy_key* wr_val) = 0;
     virtual void insert(std::string* key, phy_key* val) = 0;
     virtual void update(std::string* key, phy_key* val) = 0;
     virtual void erase(std::string* key) = 0;

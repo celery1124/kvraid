@@ -85,6 +85,18 @@ public:
         return exist;
     }
 
+    bool readmodifywrite(std::string* key, phy_key* rd_val, phy_key* wr_val) {
+        bool exist;
+        std::unique_lock<std::mutex> lock(mutex_);
+        auto it = key_map_.find(*key);
+        exist = (it != key_map_.end());
+        if (exist) {
+            *rd_val = it->second;
+            key_map_[*key] = *wr_val;
+        }
+        return exist;
+    }
+
     void insert(std::string *key, phy_key *val) {
         std::unique_lock<std::mutex> lock(mutex_);
         key_map_.insert(std::make_pair(*key, *val));
@@ -253,6 +265,22 @@ public:
         if (db_->Get(options, leveldb::Slice(*key), &value).ok()) {
             exist = true;
             val->decode(&value);
+        }
+        return exist;
+    }
+
+    bool readmodifywrite(std::string* key, phy_key* rd_val, phy_key* wr_val) {
+        bool exist;
+        leveldb::ReadOptions options;
+        std::string value;
+        if (db_->Get(options, leveldb::Slice(*key), &value).ok()) {
+            exist = true;
+            rd_val->decode(&value);
+            // update
+            leveldb::WriteBatch batch;
+            std::string val_s = wr_val->ToString();
+            batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
+            db_->Write(write_options_, &batch);
         }
         return exist;
     }
