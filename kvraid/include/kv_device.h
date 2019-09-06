@@ -15,7 +15,8 @@
 #include "kvssd/kvs_api.h"
 #include "kvssd/kvs_cont.h"
 #include "phy_kv.h"
-#include "threadpool.h"
+//#include "threadpool.h"
+#include <semaphore.h>
 
 // class KV_DEVICE; // forward declaration
 // typedef struct {
@@ -48,18 +49,18 @@ public:
 
     // req queue (using thread pool)
     // threadpool_t *pool;
-    // sem_t q_sem;
+    sem_t q_sem;
 
     KV_DEVICE(int id, KVS_CONT *kvs_cont, int thread_count, int queue_depth): 
         dev_id(id), cont_(kvs_cont), log_capacity_() {
         log_capacity_ = kvs_cont->get_log_capacity();
 
         // pool = threadpool_create(thread_count, queue_depth, 0, &q_sem);
-        // sem_init(&q_sem, 0, queue_depth);
+        sem_init(&q_sem, 0, queue_depth);
     }
     ~KV_DEVICE() {
         // threadpool_destroy(pool, 1);
-        // sem_destroy(&q_sem);
+        sem_destroy(&q_sem);
         FILE *fd = fopen("kv_device.log","a");
         fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
         fprintf(fd, "usage %.3f\n", (double)get_capacity()*get_util()/1024/1024);
