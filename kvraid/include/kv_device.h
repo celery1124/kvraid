@@ -73,6 +73,7 @@ public:
 	bool kv_delete(phy_key *key);
     bool kv_delete(std::string *key);
 	bool kv_get(phy_key *key, phy_val *value);
+	bool kv_get(std::string *key, phy_val *value);
     bool kv_get(std::string *key, std::string *value);
     
     bool kv_astore(phy_key *key, phy_val *value, void (*callback)(void *), void *argument);

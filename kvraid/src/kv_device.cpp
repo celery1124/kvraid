@@ -178,6 +178,32 @@ bool KV_DEVICE::kv_get(phy_key *key, phy_val *value)
 
 }
 
+bool KV_DEVICE::kv_get(std::string *key, phy_val *value)
+{
+    const kvs_key  kvskey = { (void *)key->c_str(), key->size() };
+    kvs_value *kvsvalue = new kvs_value{ value->c_val, value->val_len , 0, 0 /*offset */};
+    kvs_retrieve_option option;
+    memset(&option, 0, sizeof(kvs_retrieve_option));
+    option.kvs_retrieve_decompress = false;
+    option.kvs_retrieve_delete = false;
+    const kvs_retrieve_context ret_ctx = {option, 0, 0};
+    int ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, kvsvalue, &ret_ctx);
+    if(ret != KVS_SUCCESS) {
+        printf("retrieve tuple %s failed with error 0x%x - %s,\n", key->c_str(), ret, kvs_errstr(ret));
+        exit(1);
+    }
+    value->actual_len = kvsvalue->actual_value_size;
+
+    delete kvsvalue;
+#ifdef IO_DEBUG
+    gettimeofday(&tp, NULL);
+    printf("[%.6f] kv_device:get key: %s, value: %s\n",((float)(tp.tv_sec*1000000 + tp.tv_usec - ts)) / 1000000 , ckey, ret);
+#endif       
+    stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
+    return true;
+
+}
+
 bool KV_DEVICE::kv_get(std::string *key, std::string *value)
 {
     const kvs_key  kvskey = { (void *)key->c_str(), key->size() };
