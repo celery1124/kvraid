@@ -36,11 +36,11 @@ bool KVMirror::kvr_insert(kvr_key *key, kvr_value *value){
     // Hash to get start dev index
     int dev_idx = get_dev_idx(key->key, key->length);
 
-    phy_key pkey(key->key, key->length);
+    std::string skey(key->key, key->length);
     phy_val pval(value->val, value->length);
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
-        ssds_[dev_idx].kv_astore(&pkey, &pval, on_io_complete, (void *)&mons[i]);
+        ssds_[dev_idx].kv_astore(&skey, &pval, on_io_complete, (void *)&mons[i]);
         dev_idx = (++dev_idx)%(k_+r_);
     }
 
@@ -59,11 +59,11 @@ bool KVMirror::kvr_update(kvr_key *key, kvr_value *value) {
     // Hash to get start dev index
     int dev_idx = get_dev_idx(key->key, key->length);
 
-    phy_key pkey(key->key, key->length);
+    std::string skey(key->key, key->length);
     phy_val pval(value->val, value->length);
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
-        ssds_[dev_idx].kv_astore(&pkey, &pval, on_io_complete, (void *)&mons[i]);
+        ssds_[dev_idx].kv_astore(&skey, &pval, on_io_complete, (void *)&mons[i]);
         dev_idx = (++dev_idx)%(k_+r_);
     }
 
@@ -82,10 +82,10 @@ bool KVMirror::kvr_delete(kvr_key *key) {
     // Hash to get start dev index
     int dev_idx = get_dev_idx(key->key, key->length);
 
-    phy_key pkey(key->key, key->length);
+    std::string skey(key->key, key->length);
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
-        ssds_[dev_idx].kv_adelete(&pkey, on_io_complete, (void *)&mons[i]);
+        ssds_[dev_idx].kv_adelete(&skey, on_io_complete, (void *)&mons[i]);
         dev_idx = (++dev_idx)%(k_+r_);
     }
 
@@ -104,11 +104,11 @@ bool KVMirror::kvr_get(kvr_key *key, kvr_value *value) {
     // Hash to get start dev index
     int dev_idx = get_dev_idx(key->key, key->length);
 
-    phy_key pkey(key->key, key->length);
+    std::string skey(key->key, key->length);
     value->val = (char*)malloc(MAX_VAL_SIZE);
     phy_val pval(value->val, MAX_VAL_SIZE);
 
-    ssds_[dev_idx].kv_get(&pkey, &pval);
+    ssds_[dev_idx].kv_get(&skey, &pval);
     value->length = pval.actual_len;
 
     return true;
@@ -120,11 +120,11 @@ bool KVMirror::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
     // If dev erased, get from next dev
     if (dev_idx == erased) dev_idx = (dev_idx+1)%(k_+r_);
 
-    phy_key pkey(key->key, key->length);
+    std::string skey(key->key, key->length);
     value->val = (char*)malloc(MAX_VAL_SIZE);
     phy_val pval(value->val, MAX_VAL_SIZE);
 
-    ssds_[dev_idx].kv_get(&pkey, &pval);
+    ssds_[dev_idx].kv_get(&skey, &pval);
     value->length = pval.actual_len;
 
     return true;

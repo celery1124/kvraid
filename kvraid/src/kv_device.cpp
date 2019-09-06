@@ -113,10 +113,29 @@ bool KV_DEVICE::kv_store(std::string *key, std::string *value)
 		
 }
 
-
 bool KV_DEVICE::kv_delete(phy_key *key)
 {
     const kvs_key  kvskey = { (void *)key->c_str(), key->get_klen()};
+    const kvs_delete_context del_ctx = { {true}, 0, 0};
+    int ret = kvs_delete_tuple(cont_->cont_handle, &kvskey, &del_ctx);
+
+    if(ret != KVS_SUCCESS) {
+        printf("delete tuple failed with error 0x%x - %s, key %s\n", ret, kvs_errstr(ret), key->c_str());
+        exit(1);
+    }
+    
+#ifdef IO_DEBUG
+    gettimeofday(&tp, NULL);
+    printf("[%.6f] kv_device:delete key: %s\n",((float)(tp.tv_sec*1000000 + tp.tv_usec - ts)) / 1000000 , ckey);
+#endif    
+    stats.num_delete.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
+
+bool KV_DEVICE::kv_delete(std::string *key)
+{
+    const kvs_key  kvskey = { (void *)key->c_str(), key->size()};
     const kvs_delete_context del_ctx = { {true}, 0, 0};
     int ret = kvs_delete_tuple(cont_->cont_handle, &kvskey, &del_ctx);
 
@@ -208,6 +227,32 @@ bool KV_DEVICE::kv_astore(phy_key *key, phy_val *value, void (*callback)(void *)
     return true;
 }
 
+bool KV_DEVICE::kv_astore(std::string *key, phy_val *value, void (*callback)(void *), void *argument){
+    sem_wait(&q_sem);
+    kvs_store_option option;
+    option.st_type = KVS_STORE_POST;
+    option.kvs_store_compress = false;
+
+    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    const kvs_store_context put_ctx = {option, (void *)callback, (void *)aio_ctx};
+    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+    kvskey->key = (void *)key->c_str();
+    kvskey->length = (uint8_t)key->size();
+    kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
+    kvsvalue->value = (void *)value->c_val;
+    kvsvalue->length = value->val_len;
+    kvsvalue->actual_value_size = kvsvalue->offset = 0;
+    kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &put_ctx, on_io_complete);
+
+    if (ret != KVS_SUCCESS) {
+        printf("kv_store_async error %s\n", kvs_errstr(ret));
+        exit(1);
+    }
+
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
 
 bool KV_DEVICE::kv_adelete(phy_key *key, void (*callback)(void *), void *argument){
     sem_wait(&q_sem);
@@ -227,12 +272,57 @@ bool KV_DEVICE::kv_adelete(phy_key *key, void (*callback)(void *), void *argumen
     return true;
 }
 
+
+bool KV_DEVICE::kv_adelete(std::string *key, void (*callback)(void *), void *argument){
+    sem_wait(&q_sem);
+    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+    kvskey->key = (void *)key->c_str();
+    kvskey->length = (uint8_t)key->size();
+    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)aio_ctx};
+    kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
+
+    if(ret != KVS_SUCCESS) {
+        printf("kv_delete_async error %s\n", kvs_errstr(ret));
+        exit(1);
+    }
+
+    stats.num_delete.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
 // value->c_val already allocated buffer (slab size)
 bool KV_DEVICE::kv_aget(phy_key *key, phy_val *value, void (*callback)(void *), void *argument){
     sem_wait(&q_sem);
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *) key->c_str();
     kvskey->length = key->get_klen();
+    kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
+    kvsvalue->value = value->c_val;
+    kvsvalue->length = value->val_len;
+    kvsvalue->actual_value_size = kvsvalue->offset = 0;
+  
+    kvs_retrieve_option option;
+    memset(&option, 0, sizeof(kvs_retrieve_option));
+    option.kvs_retrieve_decompress = false;
+    option.kvs_retrieve_delete = false;
+    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    const kvs_retrieve_context ret_ctx = {option, (void *)callback, (void *)aio_ctx};
+    kvs_result ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
+    if(ret != KVS_SUCCESS) {
+      printf("kv_get_async error %d\n", ret);
+      exit(1);
+    }
+
+    stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
+bool KV_DEVICE::kv_aget(std::string *key, phy_val *value, void (*callback)(void *), void *argument){
+    sem_wait(&q_sem);
+    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+    kvskey->key = (void *) key->c_str();
+    kvskey->length = key->size();
     kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
     kvsvalue->value = value->c_val;
     kvsvalue->length = value->val_len;
