@@ -67,6 +67,9 @@ do
 					cat kv_device.log|grep ", get"| awk '{ SUM += $4} END { print SUM }' >> $result_txt
 					printf "delete_ios: " >> $result_txt
 					cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
+					# report device usage
+					printf "dev_usage: " >> $result_txt
+					cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 					rm -rf kv_device.log
 					sleep 3
@@ -116,6 +119,9 @@ do
 					cat kv_device.log|grep ", get"| awk '{ SUM += $4} END { print SUM }' >> $result_txt
 					printf "delete_ios: " >> $result_txt
 					cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
+					# report device usage
+					printf "dev_usage: " >> $result_txt
+					cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 					echo "" >> $result_txt
 					rm -rf *.log
