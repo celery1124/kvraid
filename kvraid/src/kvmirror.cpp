@@ -41,7 +41,7 @@ bool KVMirror::kvr_insert(kvr_key *key, kvr_value *value){
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
         ssds_[dev_idx].kv_astore(&pkey, &pval, on_io_complete, (void *)&mons[i]);
-        dev_idx = (dev_idx++)%(k_+r_);
+        dev_idx = (++dev_idx)%(k_+r_);
     }
 
     for (int i = 0; i < r_+1; i++) {
@@ -64,7 +64,7 @@ bool KVMirror::kvr_update(kvr_key *key, kvr_value *value) {
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
         ssds_[dev_idx].kv_astore(&pkey, &pval, on_io_complete, (void *)&mons[i]);
-        dev_idx = (dev_idx++)%(k_+r_);
+        dev_idx = (++dev_idx)%(k_+r_);
     }
 
     for (int i = 0; i < r_+1; i++) {
@@ -86,7 +86,7 @@ bool KVMirror::kvr_delete(kvr_key *key) {
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
         ssds_[dev_idx].kv_adelete(&pkey, on_io_complete, (void *)&mons[i]);
-        dev_idx = (dev_idx++)%(k_+r_);
+        dev_idx = (++dev_idx)%(k_+r_);
     }
 
     for (int i = 0; i < r_+1; i++) {
