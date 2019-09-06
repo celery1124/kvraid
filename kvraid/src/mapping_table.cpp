@@ -5,7 +5,9 @@
 #include <fstream>
 
 #include <map>
+#include <unordered_map>
 #include <mutex>
+#include <pthread.h> 
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "leveldb/cache.h"
@@ -15,8 +17,8 @@
 class MemMap : public Map {
 friend class MemMapIterator;
 private:
-    std::map<std::string, phy_key> key_map_;
-    std::mutex mutex_;
+    std::unordered_map<std::string, phy_key> key_map_;
+    pthread_rwlock_t rwlock_;
 
     int serializedSize();
     void serialize(char *filename);
@@ -25,39 +27,44 @@ public:
     class MemMapIterator : public MapIterator {
     private:
         MemMap *map_;
-        std::map<std::string, phy_key>::iterator it_;
+        std::unordered_map<std::string, phy_key>::iterator it_;
         std::string curr_key_;
         std::string curr_val_;
     public:
         explicit MemMapIterator(MemMap *map) : map_(map), it_(NULL) {}
         ~MemMapIterator() {}
         void Seek(std::string &key) {
-            std::unique_lock<std::mutex> lock(map_->mutex_);
-            it_ = map_->key_map_.lower_bound(key);
+            pthread_rwlock_wrlock(&(map_->rwlock_));
+            //it_ = map_->key_map_.lower_bound(key);
+            it_ = map_->key_map_.end();
             if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
             }
+            pthread_rwlock_unlock(&(map_->rwlock_));
         }
         void SeekToFirst() {
-            std::unique_lock<std::mutex> lock(map_->mutex_);
+            pthread_rwlock_wrlock(&(map_->rwlock_));
             it_ = map_->key_map_.begin();
             if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
             }
+            pthread_rwlock_unlock(&(map_->rwlock_));
         }
         void Next() {
-            std::unique_lock<std::mutex> lock(map_->mutex_);
+            pthread_rwlock_wrlock(&(map_->rwlock_));
             ++it_;
             if (it_ != map_->key_map_.end()) {
                 curr_key_ = it_->first;
                 curr_val_ = it_->second.ToString();
             }
+            pthread_rwlock_unlock(&(map_->rwlock_));
         }
         bool Valid() {
-            std::unique_lock<std::mutex> lock(map_->mutex_);
+            pthread_rwlock_wrlock(&(map_->rwlock_));
             return it_ != map_->key_map_.end();
+            pthread_rwlock_unlock(&(map_->rwlock_));
         }
         std::string& Key() {
             return curr_key_;
@@ -67,6 +74,7 @@ public:
         }
     };
     MemMap() {
+        pthread_rwlock_init(&rwlock_,NULL);
         std::ifstream f("mapping_table.log",std::ifstream::in|std::ios::binary);
         if (f) {
             deserialize("mapping_table.log");
@@ -74,32 +82,34 @@ public:
     };
     ~MemMap() {
         serialize("mapping_table.log");
+        pthread_rwlock_destroy(&rwlock_);
     };
 
     bool lookup(std::string *key, phy_key *val) {
-        std::unique_lock<std::mutex> lock(mutex_);
+        pthread_rwlock_rdlock(&rwlock_);
         auto it = key_map_.find(*key);
         bool exist = (it != key_map_.end());
         if (exist) *val = it->second;
-
+        pthread_rwlock_unlock(&rwlock_);
         return exist;
     }
 
     bool readmodifywrite(std::string* key, phy_key* rd_val, phy_key* wr_val) {
         bool exist;
-        std::unique_lock<std::mutex> lock(mutex_);
+        pthread_rwlock_wrlock(&rwlock_);
         auto it = key_map_.find(*key);
         exist = (it != key_map_.end());
         if (exist) {
             *rd_val = it->second;
             key_map_[*key] = *wr_val;
         }
+        pthread_rwlock_unlock(&rwlock_);
         return exist;
     }
 
     bool readtestupdate(std::string* key, phy_key* rd_val, phy_key* old_val, phy_key* new_val) {
         bool match;
-        std::unique_lock<std::mutex> lock(mutex_);
+        pthread_rwlock_wrlock(&rwlock_);
         auto it = key_map_.find(*key);
         assert(it != key_map_.end());
         *rd_val = it->second;
@@ -110,27 +120,32 @@ public:
         else { // active KV got updated before REPLACE
             printf("rare case when doing GC\n"); // TODO
         }
+        pthread_rwlock_unlock(&rwlock_);
         return match;
     }
 
     void insert(std::string *key, phy_key *val) {
-        std::unique_lock<std::mutex> lock(mutex_);
+        pthread_rwlock_wrlock(&rwlock_);
         key_map_.insert(std::make_pair(*key, *val));
+        pthread_rwlock_unlock(&rwlock_);
     }
 
     void update(std::string *key, phy_key *val) {
-        std::unique_lock<std::mutex> lock(mutex_);
+        pthread_rwlock_wrlock(&rwlock_);
         // already know key exist
         key_map_[*key] = *val;
+        pthread_rwlock_unlock(&rwlock_);
     }
 
     void erase(std::string *key) {
-        std::unique_lock<std::mutex> lock(mutex_);
+        pthread_rwlock_wrlock(&rwlock_);
         key_map_.erase(*key);
+        pthread_rwlock_unlock(&rwlock_);
     }
 
     MapIterator* NewMapIterator() {
-        return new MemMapIterator(this);
+        //return new MemMapIterator(this);
+        printf("NOT IMPLEMENT\n");
     }
 };
 
