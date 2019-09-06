@@ -404,7 +404,7 @@ bool KV_DEVICE::kv_aget(std::string *key, phy_val *value, void (*callback)(void 
 //     return true;
 // }
 
-int64_t KV_DEVICE::get_capacity() {
+int64_t KV_DEVICE::get_real_capacity() {
     int64_t dev_cap;
     kvs_get_device_capacity(cont_->dev, &dev_cap);
     return dev_cap;

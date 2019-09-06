@@ -45,6 +45,7 @@ public:
 
     // stats
     int64_t log_capacity_; //B
+    int64_t real_capacity_; //
     kvd_stats stats;
 
     // req queue (using thread pool)
@@ -54,6 +55,7 @@ public:
     KV_DEVICE(int id, KVS_CONT *kvs_cont, int thread_count, int queue_depth): 
         dev_id(id), cont_(kvs_cont), log_capacity_() {
         log_capacity_ = kvs_cont->get_log_capacity();
+        real_capacity_ = get_real_capacity();
 
         // pool = threadpool_create(thread_count, queue_depth, 0, &q_sem);
         sem_init(&q_sem, 0, queue_depth);
@@ -86,7 +88,8 @@ public:
     void kv_scan_keys(std::vector<std::string> &keys); // for testing
 
     int64_t get_log_capacity() {return log_capacity_;};
-    int64_t get_capacity();
+    int64_t get_capacity() {return real_capacity_;}
+    int64_t get_real_capacity();
     double get_util();
     float get_waf();
     
