@@ -487,7 +487,7 @@ bool KVRaid::CheckGCTrigger(int slab_id) {
     //     get_util() >= GC_DEV_UTIL_THRES || 
     //     slabs_[slab_id].dq_size() >= GC_DELETE_Q_THRES;
     
-    return false;
+    return get_util() >= GC_DEV_UTIL_THRES;
 }
 
 void KVRaid::DoGC() {
