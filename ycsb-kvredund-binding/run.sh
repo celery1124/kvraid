@@ -46,7 +46,8 @@ do
 					nvme format /dev/nvme3n1
 					nvme format /dev/nvme4n1
 					nvme format /dev/nvme5n1
-						
+					
+					sleep 3
 					# ycsb load
 					./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads 2> err.log 
 						
