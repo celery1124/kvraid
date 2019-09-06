@@ -85,7 +85,7 @@ public:
 
     void kv_scan_keys(std::vector<std::string> &keys); // for testing
 
-    int64_t get_log_capacity();
+    int64_t get_log_capacity() {return log_capacity_;};
     int64_t get_capacity();
     double get_util();
     float get_waf();
