@@ -173,8 +173,9 @@ private:
     char **code_;
     // seq generator
     uint64_t seq_; // monotonous for recovery
-    std::queue<uint64_t> delete_seq_;  // seq before trim
     std::mutex seq_mutex_;
+    std::queue<uint64_t> delete_seq_;  // seq before trim
+    std::mutex dseq_mutex_;
 
     int num_pq_;
     std::mutex *thread_m_;

@@ -12,13 +12,13 @@
 #define GC_DEV_UTIL_THRES 0.5
 #define GC_DELETE_Q_THRES 0
 
-#define DEQ_TIMEOUT 1000 // us
+#define DEQ_TIMEOUT 500 // us
 
 namespace kvraid {
 
 void SlabQ::get_delete_ids(std::vector<uint64_t>& groups, int trim_num) {
     {
-        std::unique_lock<std::mutex> lock(seq_mutex_);
+        std::unique_lock<std::mutex> lock(dseq_mutex_);
         while (!delete_seq_.empty() && trim_num > 0) {
             groups.push_back(delete_seq_.front());
             delete_seq_.pop();
@@ -29,7 +29,7 @@ void SlabQ::get_delete_ids(std::vector<uint64_t>& groups, int trim_num) {
 
 void SlabQ::add_delete_ids(std::vector<uint64_t>& groups) {
     {
-        std::unique_lock<std::mutex> lock(seq_mutex_);
+        std::unique_lock<std::mutex> lock(dseq_mutex_);
         for (auto it=groups.begin(); it!=groups.end(); ++it) {
             delete_seq_.push(*it);
         }
@@ -57,7 +57,7 @@ uint64_t SlabQ::get_curr_group_id(){
 
 void SlabQ::add_delete_id(uint64_t group_id) {
     {
-        std::unique_lock<std::mutex> lock(seq_mutex_);
+        std::unique_lock<std::mutex> lock(dseq_mutex_);
         delete_seq_.push(group_id);
     }
 }
@@ -305,14 +305,8 @@ void SlabQ::processQ(int id) {
                     match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
                     if (!match) { // reclaimed kv got updated/deleted (rare)
                         // we need to update the deleteQ
-                        int sid = kvr_ctxs[i]->kv_ctx->pkey->get_slab_id();
                         delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
-                        dq_insert(pkeys[i].get_seq());
-                        
-                        std::unique_lock<std::mutex> lck(kvr_ctxs[i]->mtx);
-                        kvr_ctxs[i]->ready = true;
-                        kvr_ctxs[i]->cv.notify_one();
-                        continue;  // no need for IO
+                        dq_insert(pkeys[i].get_seq());                        
                     }
                 }
                 else {
