@@ -161,7 +161,6 @@ typedef struct {
 class KVRaid; // forward declaration
 class SlabQ {
 private:
-    KVRaid *parent_;
     int sid_;
     // slab info
     int slab_size_;
@@ -192,6 +191,7 @@ private:
         }
     }
 public:
+    KVRaid *parent_;
     // Delete queue
     DeleteQ delete_q;
 
@@ -260,6 +260,11 @@ public:
 
 class KVRaid : public KVR {
     friend class SlabQ;
+public:
+	// key index
+	Map *key_map_; 
+    // slabs
+    SlabQ *slabs_;
 private:
 	int k_; // number of data nodes
     int r_;  // number of parity 
@@ -272,12 +277,6 @@ private:
     // erasure code
     EC ec_;
     
-	// key index
-	Map *key_map_; 
-
-    // slabs
-    SlabQ *slabs_;
-
     // finelock on request key
     FineLock<std::string> req_key_fl_;
 
