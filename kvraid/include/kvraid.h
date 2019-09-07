@@ -303,7 +303,7 @@ private:
     int64_t get_log_capacity() {return ssds_[0].get_log_capacity();}
     int64_t get_usage(int i) {return int64_t(ssds_[i].get_util()*get_capacity());}
     double get_util() {
-        double util = (double)get_usage(0)/get_log_capacity();
+        return (double)get_usage(0)/get_log_capacity();
     }
     float get_waf() {
         double waf = 0;
