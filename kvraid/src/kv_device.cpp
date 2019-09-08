@@ -16,6 +16,7 @@ extern long int ts;
 
 typedef struct {
     sem_t *q_sem;
+    phy_val *pval;
     void *args;
 } aio_context;
 
@@ -41,6 +42,8 @@ void on_io_complete(kvs_callback_context* ioctx) {
     case IOCB_ASYNC_GET_CMD : {
       void (*callback_get) (void *) = (void (*)(void *))ioctx->private1;
       void *args_get = (void *)aio_ctx->args;
+      phy_val *pval = aio_ctx->pval;
+      pval->actual_len = ioctx->value->actual_value_size;
       if (callback_get != NULL) {
         callback_get(args_get);
       }
@@ -233,7 +236,7 @@ bool KV_DEVICE::kv_astore(phy_key *key, phy_val *value, void (*callback)(void *)
     option.st_type = KVS_STORE_POST;
     option.kvs_store_compress = false;
 
-    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_store_context put_ctx = {option, (void *)callback, (void *)aio_ctx};
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->c_str();
@@ -259,7 +262,7 @@ bool KV_DEVICE::kv_astore(std::string *key, phy_val *value, void (*callback)(voi
     option.st_type = KVS_STORE_POST;
     option.kvs_store_compress = false;
 
-    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_store_context put_ctx = {option, (void *)callback, (void *)aio_ctx};
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->c_str();
@@ -285,7 +288,7 @@ bool KV_DEVICE::kv_adelete(phy_key *key, void (*callback)(void *), void *argumen
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->c_str();
     kvskey->length = (uint8_t)key->get_klen();
-    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
 
@@ -304,7 +307,7 @@ bool KV_DEVICE::kv_adelete(std::string *key, void (*callback)(void *), void *arg
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->c_str();
     kvskey->length = (uint8_t)key->size();
-    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
 
@@ -332,7 +335,7 @@ bool KV_DEVICE::kv_aget(phy_key *key, phy_val *value, void (*callback)(void *), 
     memset(&option, 0, sizeof(kvs_retrieve_option));
     option.kvs_retrieve_decompress = false;
     option.kvs_retrieve_delete = false;
-    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_retrieve_context ret_ctx = {option, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
     if(ret != KVS_SUCCESS) {
@@ -358,7 +361,7 @@ bool KV_DEVICE::kv_aget(std::string *key, phy_val *value, void (*callback)(void 
     memset(&option, 0, sizeof(kvs_retrieve_option));
     option.kvs_retrieve_decompress = false;
     option.kvs_retrieve_delete = false;
-    aio_context *aio_ctx = new aio_context {&q_sem, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_retrieve_context ret_ctx = {option, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
     if(ret != KVS_SUCCESS) {
