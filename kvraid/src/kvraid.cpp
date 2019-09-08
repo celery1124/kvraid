@@ -183,51 +183,6 @@ static void on_bulk_write_complete(void *arg) {
     if(!bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->num_ios)) {
         return;
     }
-
-    // update mapping table
-    int count = bulk_io_ctx->bulk_size;
-    kvr_context **kvr_ctxs = bulk_io_ctx->kvr_ctxs;
-    phy_key *pkeys = bulk_io_ctx->keys;
-    SlabQ *q = bulk_io_ctx->q;
-    for (int i = 0; i < count; i++){
-        std::string skey = std::string(kvr_ctxs[i]->key->key, kvr_ctxs[i]->key->length);
-        phy_key stale_key;
-        
-        if (kvr_ctxs[i]->ops == KVR_INSERT) {
-            // insert 
-            q->parent_->key_map_->insert(&skey, &pkeys[i]);
-            //printf("insert %s -> %d\n",skey.c_str(), pkeys[i].get_seq());
-        }
-        else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-            // update
-            q->parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
-            //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
-        }
-        else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
-            // replace
-            phy_key rd_pkey;
-            bool match;
-            match = q->parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
-            if (!match) { // reclaimed kv got updated/deleted (rare)
-                // we need to update the deleteQ
-                q->delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
-                q->dq_insert(pkeys[i].get_seq());                        
-            }
-        }
-        else {
-            if (kvr_ctxs[i]->ops == KVR_INSERT)
-                printf("[SlabQ::processQ] insert logical key already exist\n");
-            else if (kvr_ctxs[i]->ops == KVR_UPDATE)
-                printf("[SlabQ::processQ] update logical key not exist\n");
-            else 
-                printf("[SlabQ::processQ] unsupport KVR_OPS\n");
-            exit(-1);
-        }
-        if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-            int del_slab_id = stale_key.get_slab_id();
-            q->parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
-        }
-    }
     
     // post process
     kvr_context *kvr_ctx;
@@ -335,46 +290,45 @@ void SlabQ::processQ(int id) {
                 phy_key stale_key;
                 (void) new (&pkeys[i]) phy_key(sid_, group_id*k_ + total_count + i);
                 
-                // if (kvr_ctxs[i]->ops == KVR_INSERT) {
-                //     // insert 
-                //     parent_->key_map_->insert(&skey, &pkeys[i]);
-                //     //printf("insert %s -> %d\n",skey.c_str(), pkeys[i].get_seq());
-                // }
-                // else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-                //     // update
-                //     parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
-                //     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
-                // }
-                // else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
-                //     // replace
-                //     phy_key rd_pkey;
-                //     bool match;
-                //     match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
-                //     if (!match) { // reclaimed kv got updated/deleted (rare)
-                //         // we need to update the deleteQ
-                //         delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
-                //         dq_insert(pkeys[i].get_seq());                        
-                //     }
-                // }
-                // else {
-                //     if (kvr_ctxs[i]->ops == KVR_INSERT)
-                //         printf("[SlabQ::processQ] insert logical key already exist\n");
-                //     else if (kvr_ctxs[i]->ops == KVR_UPDATE)
-                //         printf("[SlabQ::processQ] update logical key not exist\n");
-                //     else 
-                //         printf("[SlabQ::processQ] unsupport KVR_OPS\n");
-                //     exit(-1);
-                // }
-
-                // if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-                //     int del_slab_id = stale_key.get_slab_id();
-                //     parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
-                // }
                 // write data
                 (void) new (&pvals[i]) phy_val(kvr_ctxs[i]->value->val, kvr_ctxs[i]->value->length);
                 parent_->ssds_[dev_idx].kv_astore(&pkeys[i], &pvals[i], on_bulk_write_complete, (void*)bulk_io_ctx);
                 //printf("insert [ssd %d] skey %s pkey %lu\n",dev_idx, skey.c_str(), pkeys[i].get_seq());
                 dev_idx = (dev_idx+1)%(k_+r_);
+
+                // update mapping
+                if (kvr_ctxs[i]->ops == KVR_INSERT) {
+                    // insert 
+                    parent_->key_map_->insert(&skey, &pkeys[i]);
+                    //printf("insert %s -> %d\n",skey.c_str(), pkeys[i].get_seq());
+                }
+                else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
+                    // update
+                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
+                    int del_slab_id = stale_key.get_slab_id();
+                    parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
+                    //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
+                }
+                else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
+                    // replace
+                    phy_key rd_pkey;
+                    bool match;
+                    match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
+                    if (!match) { // reclaimed kv got updated/deleted (rare)
+                        // we need to update the deleteQ
+                        delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
+                        dq_insert(pkeys[i].get_seq());                        
+                    }
+                }
+                else {
+                    if (kvr_ctxs[i]->ops == KVR_INSERT)
+                        printf("[SlabQ::processQ] insert logical key already exist\n");
+                    else if (kvr_ctxs[i]->ops == KVR_UPDATE)
+                        printf("[SlabQ::processQ] update logical key not exist\n");
+                    else 
+                        printf("[SlabQ::processQ] unsupport KVR_OPS\n");
+                    exit(-1);
+                }
             }
             // write code
             dev_idx = (dev_idx_start+k_) % (k_+r_);
@@ -465,6 +419,7 @@ void KVRaid::DoReclaim(int slab_id) {
     
     // scan delete q
     dq->scan(min_num_invalids, actives, groups);
+    if (groups.size() == 0) return;
 
     // DO reclaim
     int num_ios = actives.size();
