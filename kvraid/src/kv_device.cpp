@@ -288,7 +288,7 @@ bool KV_DEVICE::kv_adelete(phy_key *key, void (*callback)(void *), void *argumen
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->c_str();
     kvskey->length = (uint8_t)key->get_klen();
-    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, NULL, argument};
     const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
 
@@ -307,7 +307,7 @@ bool KV_DEVICE::kv_adelete(std::string *key, void (*callback)(void *), void *arg
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->c_str();
     kvskey->length = (uint8_t)key->size();
-    aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
+    aio_context *aio_ctx = new aio_context {&q_sem, NULL, argument};
     const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
 
