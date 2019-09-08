@@ -172,8 +172,10 @@ static void unpack_value(char *src, kvr_key *key, kvr_value *val) {
         key->length = key_len;
         key->key = src+KEY_SIZE_BYTES;
     }
-    val->length = *((uint32_t *)(src+KEY_SIZE_BYTES+key_len));
-    val->val = src+KEY_SIZE_BYTES+key_len+VAL_SIZE_BYTES;
+    if (val != NULL) {
+        val->length = *((uint32_t *)(src+KEY_SIZE_BYTES+key_len));
+        val->val = src+KEY_SIZE_BYTES+key_len+VAL_SIZE_BYTES;
+    }
 }
 
 static void on_bulk_write_complete(void *arg) {
@@ -236,7 +238,6 @@ static void on_bulk_write_complete(void *arg) {
             kvr_ctx->ready = true;
             kvr_ctx->cv.notify_one();
         }
-        if (kvr_ctxs[i]->ops == KVR_REPLACE) printf("KVR_REPLACE nofity\n");
     }
 
     // free memory
@@ -445,7 +446,6 @@ void on_reclaim_get_complete(void *args) {
     kv_context* kv_ctx = new kv_context {ctx->pkey, ctx->pval};
     ctx->kvQ->enqueue(kv_ctx);
 
-    printf("KVR_REPLACE get complete\n");
     delete ctx;
 }
 
@@ -468,7 +468,6 @@ void KVRaid::DoReclaim(int slab_id) {
 
     // DO reclaim
     int num_ios = actives.size();
-    printf("total replace num %d\n", num_ios);
     moodycamel::BlockingConcurrentQueue<kv_context *> kvQ;
     for (auto it = actives.begin(); it != actives.end(); ++it) {
         int dev_idx = slab->get_dev_idx(*it);
@@ -489,11 +488,12 @@ void KVRaid::DoReclaim(int slab_id) {
         for (int i = 0; i < count; i++) {
             kvr_key *mv_key = new kvr_key;
             kvr_value *mv_val = new kvr_value;
-            unpack_value(kvs[i]->pval->c_val, mv_key, mv_val);
+            mv_val->length = kvs[i]->pval->actual_len;
+            mv_val->val = kvs[i]->pval->c_val;
+            unpack_value(kvs[i]->pval->c_val, mv_key, NULL);
             kvr_context* kvr_ctx = new kvr_context(KVR_REPLACE, mv_key, mv_val, kvs[i]);
             slab->q.enqueue(kvr_ctx);
             kvr_ctx_vec.push_back(kvr_ctx);
-            printf("KVR_REPLACE push to queue\n");
         }
         delete [] kvs;
         num_ios -= count;
@@ -509,8 +509,6 @@ void KVRaid::DoReclaim(int slab_id) {
             std::unique_lock<std::mutex> lck(kvr_ctx_vec[i]->mtx);
             kvr_ctx_vec[i]->cv.wait(lck);
         }
-
-        printf("KVR_REPLACE wait\n");
 
         free(kvr_ctx_vec[i]->kv_ctx->pval->c_val);
         delete kvr_ctx_vec[i]->kv_ctx->pkey;
