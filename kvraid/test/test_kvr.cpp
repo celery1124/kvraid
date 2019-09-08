@@ -12,7 +12,7 @@
 
 #define thread_cnt 8
 #define OBJ_LEN 512+256
-#define DEV_CAP 107374182400
+#define DEV_CAP 1048576
 
 class Random {
  private:
@@ -211,8 +211,8 @@ int main() {
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
-    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
     std::thread *th_load[16];
@@ -230,8 +230,8 @@ int main() {
 
     // close kvr and open again (for testing)
     delete kvr; 
-    kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
 
     // seek(kvr, 19);
     // printf("finish iteraotr test\n\n");
@@ -247,10 +247,11 @@ int main() {
     printf("finish erased_get test\n\n");
 
     for (int i = 0; i< thread_cnt; i++) {
-      if (i%2 == 1)
-        th_update[i] = new std::thread(update, kvr, 10000, false, i);
-      else
-        th_update[i] = new std::thread(get, kvr, 100, i);
+      // if (i%2 == 1)
+      //   th_update[i] = new std::thread(update, kvr, 10000, false, i);
+      // else
+      //   th_update[i] = new std::thread(get, kvr, 100, i);
+      th_update[i] = new std::thread(update, kvr, 10000, false, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
