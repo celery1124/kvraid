@@ -462,7 +462,7 @@ void KVRaid::DoReclaim(int slab_id) {
     for (int i = 0; i < kvr_ctx_vec.size(); i++) {
         {
             std::unique_lock<std::mutex> lck(kvr_ctx_vec[i]->mtx);
-            kvr_ctx_vec[i]->cv.wait(lck);
+            while (!kvr_ctx_vec[i]->ready) kvr_ctx_vec[i]->cv.wait(lck);
         }
 
         free(kvr_ctx_vec[i]->kv_ctx->pval->c_val);
