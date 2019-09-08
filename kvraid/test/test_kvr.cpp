@@ -219,7 +219,7 @@ int main() {
     std::thread *th_update[16];
     std::thread *th_get[16];
     for (int i = 0; i< thread_cnt; i++) {
-        th_load[i] = new std::thread(load, kvr, 10000 , true, i);
+        th_load[i] = new std::thread(load, kvr, 100000 , true, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
@@ -248,7 +248,7 @@ int main() {
 
     for (int i = 0; i< thread_cnt; i++) {
       if (i%2 == 1)
-        th_update[i] = new std::thread(update, kvr, 10000, false, i);
+        th_update[i] = new std::thread(update, kvr, 100000, false, i);
       else
         th_update[i] = new std::thread(get, kvr, 100, i);
     }
