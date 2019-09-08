@@ -247,11 +247,10 @@ int main() {
     printf("finish erased_get test\n\n");
 
     for (int i = 0; i< thread_cnt; i++) {
-      // if (i%2 == 1)
-      //   th_update[i] = new std::thread(update, kvr, 10000, false, i);
-      // else
-      //   th_update[i] = new std::thread(get, kvr, 100, i);
-      th_update[i] = new std::thread(update, kvr, 10000, false, i);
+      if (i%2 == 1)
+        th_update[i] = new std::thread(update, kvr, 10000, false, i);
+      else
+        th_update[i] = new std::thread(get, kvr, 100, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
