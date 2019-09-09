@@ -9,16 +9,16 @@ rm *.log # remove uncessary files
 
 threads="32"
 #tests="evalf"
-val_dis="constant uniform"
-tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
+#tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
+tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 
 
-recordcnt='50000000'
-sed -i 's/recordcount=.*/recordcount='$recordcnt'/' workloads/eval*_*
-opcnt='10000000'
-sed -i 's/operationcount=.*/operationcount='$opcnt'/' workloads/eval*_*
+recordcnt='25000000'
+sed -i 's/recordcount=.*/recordcount='$recordcnt'/' workloads/*_uniform
+opcnt='20000000'
+sed -i 's/operationcount=.*/operationcount='$opcnt'/' workloads/*_uniform
 
 for exp_id in $( seq 1 $numofexp )
 do
