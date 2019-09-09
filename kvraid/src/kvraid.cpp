@@ -196,8 +196,23 @@ static void on_bulk_write_complete(void *arg) {
     
     // post process
     kvr_context *kvr_ctx;
+    phy_key *pkeys = bulk_io_ctx->keys;
     for (int i = 0; i < bulk_io_ctx->bulk_size; i++) {
         kvr_ctx = bulk_io_ctx->kvr_ctxs[i];
+        // update mapping for KVR_REPLACE
+        if (kvr_ctx->ops == KVR_REPLACE) {
+            SlabQ *q = bulk_io_ctx->q;
+            std::string skey = std::string(kvr_ctx->key->key, kvr_ctx->key->length);
+            // replace
+            phy_key rd_pkey;
+            bool match;
+            match = q->parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctx->kv_ctx->pkey, &pkeys[i]);
+            if (!match) { // reclaimed kv got updated/deleted (rare)
+                // we need to update the deleteQ
+                q->delete_q.erase(kvr_ctx->kv_ctx->pkey->get_seq());
+                q->dq_insert(pkeys[i].get_seq());                        
+            }
+        }
         {
             std::unique_lock<std::mutex> lck(kvr_ctx->mtx);
             kvr_ctx->ready = true;
@@ -320,15 +335,15 @@ void SlabQ::processQ(int id) {
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
-                    // replace
-                    phy_key rd_pkey;
-                    bool match;
-                    match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
-                    if (!match) { // reclaimed kv got updated/deleted (rare)
-                        // we need to update the deleteQ
-                        delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
-                        dq_insert(pkeys[i].get_seq());                        
-                    }
+                    // // replace
+                    // phy_key rd_pkey;
+                    // bool match;
+                    // match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
+                    // if (!match) { // reclaimed kv got updated/deleted (rare)
+                    //     // we need to update the deleteQ
+                    //     delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
+                    //     dq_insert(pkeys[i].get_seq());                        
+                    // }
                 }
                 else {
                     if (kvr_ctxs[i]->ops == KVR_INSERT)

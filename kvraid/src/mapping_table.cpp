@@ -98,6 +98,7 @@ public:
         bool exist;
         pthread_rwlock_wrlock(&rwlock_);
         auto it = key_map_.find(*key);
+        assert(it != key_map_.end());
         exist = (it != key_map_.end());
         if (exist) {
             *rd_val = it->second;
@@ -118,7 +119,7 @@ public:
             key_map_[*key] = *new_val;
         }
         else { // active KV got updated before REPLACE
-            printf("rare case when doing GC\n"); // TODO
+            //printf("rare case when doing GC\n"); // TODO
         }
         pthread_rwlock_unlock(&rwlock_);
         return match;
