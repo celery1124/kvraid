@@ -45,6 +45,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
 	int r = config["num_code_nodes"].int_value();
     int kvr_type = config["kvr_type"].int_value();
     int meta_type = config["meta_type"].int_value();
+    int gc_ena = config["gc_ena"].int_value();
     json11::Json::array slab_array = config["slab_list"].array_items();
     int64_t dev_cap = (int64_t)config["dev_cap"].number_value();
 	batch_size = config["batch_size"].int_value();
@@ -73,7 +74,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     }
     switch (kvr_type) {
     case 0 :
-        kvr = NewKVRaid (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type));
+        kvr = NewKVRaid (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), gc_ena==1);
         printf("[KVRaid] {%d, %d} initiated]\n", k, r);
         break;
     case 1 :
