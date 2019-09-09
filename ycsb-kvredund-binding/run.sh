@@ -10,7 +10,7 @@ rm *.log # remove uncessary files
 threads="32"
 #tests="evalf"
 #tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
-tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
+tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr82_uniform wr73_uniform wr64_uniform"
 kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 gc_ena="0 1"
@@ -35,7 +35,7 @@ do
 
 				for testfile in $tests
 				do
-					result_txt=$result_dir/${testfile}_${kv_type}_${m_type}_${exp_id}
+					result_txt=$result_dir/${testfile}_${kv_type}_${m_type}_${gc_en}_${exp_id}
 					# clean file if existed
 					echo "" > $result_txt
 					for numofthreads in $threads
