@@ -6,7 +6,7 @@
 #include "kvraid.h"
 
 #define RECLAIMS_BULKS 2 * k_
-#define MAX_TRIM_NUM 64 * k_
+#define MAX_TRIM_NUM 1024
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
 #define GC_DEV_UTIL_THRES 0.5
@@ -23,6 +23,16 @@ void SlabQ::get_delete_ids(std::vector<uint64_t>& groups, int trim_num) {
             groups.push_back(delete_seq_.front());
             delete_seq_.pop();
             trim_num--;
+        }
+    }
+}
+
+void SlabQ::get_all_delete_ids(std::vector<uint64_t>& groups) {
+    {
+        std::unique_lock<std::mutex> lock(dseq_mutex_);
+        while (!delete_seq_.empty()) {
+            groups.push_back(delete_seq_.front());
+            delete_seq_.pop();
         }
     }
 }
@@ -394,6 +404,34 @@ void KVRaid::DoTrim(int slab_id) {
     data_volume_.fetch_sub(slab_list_[slab_id]*groups.size()*(k_+r_), std::memory_order_relaxed);
 }
 
+void KVRaid::DoTrimAll(int slab_id) {
+    std::vector<uint64_t> groups;
+    SlabQ *slab = &slabs_[slab_id];
+    slab->get_all_delete_ids(groups);
+
+    for (auto it = groups.begin(); it != groups.end(); ++it) {
+        uint64_t group_id = *it;
+        int dev_idx = group_id%(k_+r_);
+        //physical trim
+        for (int i = 0; i < k_; i++) {
+            phy_key *phykey = new phy_key(slab_id, group_id*k_ + i);
+            delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
+            ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
+            //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
+            dev_idx = (dev_idx+1)%(k_+r_);
+        }
+        for (int i = 0; i < r_; i++) {
+            phy_key *phykey = new phy_key(slab_id, group_id*k_ );
+            delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
+            ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
+            //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
+            dev_idx = (dev_idx+1)%(k_+r_);
+        }
+    }
+
+
+    data_volume_.fetch_sub(slab_list_[slab_id]*groups.size()*(k_+r_), std::memory_order_relaxed);
+}
 
 void on_reclaim_get_complete(void *args) {
     reclaim_get_context* ctx = (reclaim_get_context*) args;
@@ -410,15 +448,8 @@ void KVRaid::DoReclaim(int slab_id) {
     SlabQ *slab = &slabs_[slab_id];
     DeleteQ *dq = &(slab->delete_q);
 
-    // calculate cost
-    int min_num_invalids = k_-1;
-    for (int i = k_-1; i>0; i--) {
-        if ((r_+1)*i > (k_+r_)) min_num_invalids = i;
-        else break;
-    }
-    
     // scan delete q
-    dq->scan(min_num_invalids, actives, groups);
+    dq->scan(min_num_invalids_, actives, groups);
     if (groups.size() == 0) return;
 
     // DO reclaim
@@ -509,7 +540,7 @@ void KVRaid::bg_GC() {
         // check thread shutdown
         {
             std::unique_lock<std::mutex> lck (thread_m_);
-            if (shutdown_ == true) return;
+            if (shutdown_ == true) break;
         }
         auto start = std::chrono::steady_clock::now();
         DoGC();
@@ -521,6 +552,12 @@ void KVRaid::bg_GC() {
         {
             std::this_thread::sleep_for(timeToWait);
         }
+    }
+    // clean up delete_seq_
+    for (int i = 0; i < num_slab_; i++) {
+        SlabQ *slab = &slabs_[i];
+        // trim all delete_seq_
+        DoTrimAll(i);
     }
 }
 

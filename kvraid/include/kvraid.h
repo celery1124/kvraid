@@ -231,6 +231,7 @@ public:
         delete [] code_;
     }
     void processQ(int id);
+    void get_all_delete_ids(std::vector<uint64_t>& groups);
     void get_delete_ids(std::vector<uint64_t>& groups, int trim_num);
     void add_delete_ids(std::vector<uint64_t>& groups);
     void add_delete_id(uint64_t group_id);
@@ -280,6 +281,8 @@ private:
     // finelock on request key
     FineLock<std::string> req_key_fl_;
 
+    int min_num_invalids_;
+
     // GC thread
     std::thread thrd;
     std::mutex thread_m_;
@@ -291,6 +294,7 @@ private:
     void bg_GC();
     void DoGC();
     void DoTrim(int slab_id);
+    void DoTrimAll(int slab_id);
     void DoReclaim(int slab_id);
     bool CheckGCTrigger(int slab_id);
 
@@ -353,6 +357,15 @@ public:
                 printf("wrong MetaType \n");
                 exit(-1);
         }
+
+        // calculate GC cost function 
+        // (k+r)/k + (k-x)/x*(k+r)/k <= (r+1)
+        min_num_invalids_ = k_-1;
+        for (int i = k_-1; i>0; i--) {
+            if ((r_+1)*i > (k_+r_)) min_num_invalids_ = i;
+            else break;
+        }
+        
 
         // GC thread
         shutdown_ = false;
