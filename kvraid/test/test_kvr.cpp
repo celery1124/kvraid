@@ -211,7 +211,7 @@ int main() {
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
     //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
@@ -231,7 +231,7 @@ int main() {
     // close kvr and open again (for testing)
     delete kvr; 
     //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem);
+    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
 
     // seek(kvr, 19);
     // printf("finish iteraotr test\n\n");

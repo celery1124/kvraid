@@ -288,6 +288,7 @@ private:
     // GC thread
     std::thread thrd;
     std::mutex thread_m_;
+    bool gc_ena_;
     bool shutdown_;
 
 	int kvr_get_slab_id(int size);
@@ -322,8 +323,8 @@ private:
     bool load_meta(uint64_t *arr, int size);
     
 public:
-	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
-    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), data_volume_(0){
+	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA) :
+    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), gc_ena_(GC_ENA), data_volume_(0){
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
         ec_.setup();
@@ -371,14 +372,14 @@ public:
 
         // GC thread
         shutdown_ = false;
-        thrd = std::thread(&KVRaid::bg_GC, this);
+        if(gc_ena_) thrd = std::thread(&KVRaid::bg_GC, this);
         //t_GC = thrd.native_handle();
         //thrd.detach();
 	}
 
 	~KVRaid() {
         shutdown_ = true;
-        thrd.join();
+        if(gc_ena_) thrd.join();
         // shutdown slab workers
         for (int i = 0; i < num_slab_; i++) {
             slabs_[i].shutdown_workers();
