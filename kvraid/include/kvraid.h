@@ -27,6 +27,8 @@
 #define MAX_ENTRIES_PER_GC 1024
 #define MAX_SCAN_LEN_PER_GC 16384
 
+#define GC_MIN_INVALID_BIAS 1
+
 namespace kvraid {
 
 typedef struct {
@@ -365,7 +367,7 @@ public:
             if ((r_+1)*i > (k_+r_)) min_num_invalids_ = i;
             else break;
         }
-        
+        min_num_invalids_ -= GC_MIN_INVALID_BIAS;  
 
         // GC thread
         shutdown_ = false;
