@@ -145,8 +145,7 @@ public:
     }
 
     MapIterator* NewMapIterator() {
-        //return new MemMapIterator(this);
-        printf("NOT IMPLEMENT\n");
+        return new MemMapIterator(this);
     }
 };
 
