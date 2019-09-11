@@ -315,7 +315,7 @@ void SlabQ::processQ(int id) {
                     //printf("insert %s -> %d\n",skey.c_str(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-                    std::lock_guard<std::mutex> guard(processq_mutex_);
+                    std::lock_guard<std::mutex> guard(parent_->processq_mutex_);
                     // update
                     parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     int del_slab_id = stale_key.get_slab_id();
@@ -488,7 +488,7 @@ void SlabQ::DoReclaim() {
         }
         // update mapping for KVR_REPLACE
         if (ack_kvr_ctx->ops == KVR_REPLACE) {
-            std::lock_guard<std::mutex> guard(processq_mutex_);
+            std::lock_guard<std::mutex> guard(parent_->processq_mutex_);
             std::string skey = std::string(ack_kvr_ctx->key->key, ack_kvr_ctx->key->length);
             // replace
             phy_key rd_pkey;

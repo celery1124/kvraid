@@ -179,7 +179,6 @@ private:
     std::queue<uint64_t> delete_seq_;  // seq before trim
     std::mutex dseq_mutex_;
 
-    std::mutex processq_mutex_;
     // process request Q
     int num_pq_;
     std::mutex *thread_m_;
@@ -303,6 +302,8 @@ private:
     int r_;  // number of parity 
 	int num_slab_;
 	int *slab_list_;
+    // atomic KVR_UPDATE & KVR_REPLACE on modify mapping table and delete q
+    std::mutex processq_mutex_; 
 
     // device
     KV_DEVICE *ssds_;
