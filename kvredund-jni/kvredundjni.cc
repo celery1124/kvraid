@@ -69,7 +69,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
             printf("dev_mode wrong, exit\n");
             exit(-1);
         }
-        (void) new (&kv_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64, dev_cap);
+        (void) new (&kv_conts[i]) KVS_CONT((char *)dev_name.c_str(), 128, dev_cap);
         printf("[dev %d %s] opened\n",i,dev_name.c_str());
     }
     switch (kvr_type) {
