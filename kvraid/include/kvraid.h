@@ -54,6 +54,7 @@ public:
     kvr_key *key;
     kvr_value *value;
     kv_context *kv_ctx;
+    phy_key replace_key;
     std::mutex mtx;
     std::condition_variable cv;
     bool ready ;
@@ -331,7 +332,7 @@ public:
 
         ssds_ = (KV_DEVICE *)malloc(sizeof(KV_DEVICE) * (k_+r_));
         for (int i = 0; i < (k_+r_); i++) {
-            (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 256);
+            (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 64);
         }
         // get KVRaid meta
         uint64_t *slab_seq = new uint64_t[num_slab];

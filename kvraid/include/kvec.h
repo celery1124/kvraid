@@ -212,7 +212,7 @@ public:
 
         ssds_ = (KV_DEVICE *)malloc(sizeof(KV_DEVICE) * (k_+r_));
         for (int i = 0; i < (k_+r_); i++) {
-            (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 256);
+            (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 64);
         }
 
         switch (meta_t) {
