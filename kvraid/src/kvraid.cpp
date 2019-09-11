@@ -199,20 +199,7 @@ static void on_bulk_write_complete(void *arg) {
     phy_key *pkeys = bulk_io_ctx->keys;
     for (int i = 0; i < bulk_io_ctx->bulk_size; i++) {
         kvr_ctx = bulk_io_ctx->kvr_ctxs[i];
-        // update mapping for KVR_REPLACE
-        if (kvr_ctx->ops == KVR_REPLACE) {
-            SlabQ *q = bulk_io_ctx->q;
-            std::string skey = std::string(kvr_ctx->key->key, kvr_ctx->key->length);
-            // replace
-            phy_key rd_pkey;
-            bool match;
-            match = q->parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctx->kv_ctx->pkey, &pkeys[i]);
-            if (!match) { // reclaimed kv got updated/deleted (rare)
-                // we need to update the deleteQ
-                q->delete_q.erase(kvr_ctx->kv_ctx->pkey->get_seq());
-                q->dq_insert(pkeys[i].get_seq());                        
-            }
-        }
+        
         {
             std::unique_lock<std::mutex> lck(kvr_ctx->mtx);
             kvr_ctx->ready = true;
@@ -335,6 +322,7 @@ void SlabQ::processQ(int id) {
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
+                    kvr_ctxs[i]->replace_key = pkeys[i];
                     // // replace
                     // phy_key rd_pkey;
                     // bool match;
@@ -506,9 +494,23 @@ void KVRaid::DoReclaim(int slab_id) {
 
     // wait for all IO complete
     for (int i = 0; i < kvr_ctx_vec.size(); i++) {
+        kvr_context *ack_kvr_ctx = kvr_ctx_vec[i];
         {
-            std::unique_lock<std::mutex> lck(kvr_ctx_vec[i]->mtx);
-            while (!kvr_ctx_vec[i]->ready) kvr_ctx_vec[i]->cv.wait(lck);
+            std::unique_lock<std::mutex> lck(ack_kvr_ctx->mtx);
+            while (!ack_kvr_ctx->ready) ack_kvr_ctx->cv.wait(lck);
+        }
+        // update mapping for KVR_REPLACE
+        if (ack_kvr_ctx->ops == KVR_REPLACE) {
+            std::string skey = std::string(ack_kvr_ctx->key->key, ack_kvr_ctx->key->length);
+            // replace
+            phy_key rd_pkey;
+            bool match;
+            match = key_map_->readtestupdate(&skey, &rd_pkey, ack_kvr_ctx->kv_ctx->pkey, &(ack_kvr_ctx->replace_key));
+            if (!match) { // reclaimed kv got updated/deleted (rare)
+                // we need to update the deleteQ
+                slabs_[slab_id].delete_q.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq());
+                slabs_[slab_id].dq_insert(ack_kvr_ctx->replace_key.get_seq());                        
+            }
         }
 
         free(kvr_ctx_vec[i]->kv_ctx->pval->c_val);
