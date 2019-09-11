@@ -9,6 +9,7 @@
 #include "kvssd/kvs_api.h"
 #include "kvssd/kvs_cont.h"
 #include "leveldb/ec.h"
+#include <semaphore.h>
 
 namespace kvssd {
   typedef struct {
@@ -21,12 +22,16 @@ namespace kvssd {
     private:
       KVS_CONT *cont_;
       kvd_stats stats;
+      sem_t q_sem;
     public:
-      KV_DEV(KVS_CONT *kvs_cont) : cont_(kvs_cont) {};
+      KV_DEV(KVS_CONT *kvs_cont, int queue_depth = 32) : cont_(kvs_cont) {
+        sem_init(&q_sem, 0, queue_depth);
+      };
       ~KV_DEV() {
         FILE *fd = fopen("kv_device.log","a");
         fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
         fclose(fd);
+        sem_destroy(&q_sem);
       };
       bool kv_exist (leveldb::Slice *key);
       uint32_t kv_get_size(leveldb::Slice *key);

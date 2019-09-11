@@ -13,6 +13,11 @@ namespace kvssd {
     void* args;
   }Async_get_context;
 
+  typedef struct {
+    void (*cb) (void *);
+    void* args;
+  } cb_context;
+
   struct iterator_info{
     kvs_iterator_handle iter_handle;
     kvs_iterator_list iter_list;
@@ -26,10 +31,12 @@ namespace kvssd {
       exit(1);
     }
     
+    sem_post((sem_t *)ioctx->private2);
+    cb_context *cb_ctx = (cb_context *)ioctx->private1;
     switch (ioctx->opcode) {
     case IOCB_ASYNC_PUT_CMD : {
-      void (*callback_put) (void *) = (void (*)(void *))ioctx->private1;
-      void *args_put = (void *)ioctx->private2;
+      void (*callback_put) (void *) = cb_ctx->cb;
+      void *args_put = cb_ctx->args;
       if (callback_put != NULL) {
         callback_put((void *)args_put);
       }
@@ -38,8 +45,8 @@ namespace kvssd {
       break;
     }
     case IOCB_ASYNC_GET_CMD : {
-      void (*callback_get) (void *) = (void (*)(void *))ioctx->private1;
-      Async_get_context *args_get = (Async_get_context *)ioctx->private2;
+      void (*callback_get) (void *) = cb_ctx->cb;
+      Async_get_context *args_get = (Async_get_context *)cb_ctx->args;
       args_get->vbuf = (char*) ioctx->value->value;
       args_get->actual_len = ioctx->value->actual_value_size;
       if (callback_get != NULL) {
@@ -50,8 +57,8 @@ namespace kvssd {
       break;
     }
     case IOCB_ASYNC_DEL_CMD : {
-      void (*callback_del) (void *) = (void (*)(void *))ioctx->private1;
-      void *args_del = (void *)ioctx->private2;
+      void (*callback_del) (void *) = cb_ctx->cb;
+      void *args_del = cb_ctx->args;
       if (callback_del != NULL) {
         callback_del((void *)args_del);
       }
@@ -63,6 +70,7 @@ namespace kvssd {
       break;
     }
     }
+    delete cb_ctx;
     return;
   }
 
@@ -108,11 +116,14 @@ namespace kvssd {
   }
 
   kvs_result KV_DEV::kv_store_async(leveldb::Slice *key, leveldb::Slice *val, void (*callback)(void *), void *args) {
+    sem_wait(&q_sem);
     kvs_store_option option;
     option.st_type = KVS_STORE_POST;
     option.kvs_store_compress = false;
 
-    const kvs_store_context put_ctx = {option, (void *)callback, (void *)args};
+    cb_context *cb_ctx = new cb_context {callback, args};
+
+    const kvs_store_context put_ctx = {option, (void *)cb_ctx, (void *)&q_sem};
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->data();
     kvskey->length = (uint8_t)key->size();
@@ -182,6 +193,7 @@ namespace kvssd {
   }
 
   kvs_result KV_DEV::kv_get_async(const leveldb::Slice *key, void (*callback)(void *), void *args) {
+    sem_wait(&q_sem);
     char *vbuf = (char *) malloc(INIT_GET_BUFF);
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *) key->data();
@@ -195,7 +207,9 @@ namespace kvssd {
     memset(&option, 0, sizeof(kvs_retrieve_option));
     option.kvs_retrieve_decompress = false;
     option.kvs_retrieve_delete = false;
-    const kvs_retrieve_context ret_ctx = {option, (void *)callback, (void *)args};
+
+    cb_context *cb_ctx = new cb_context {callback, args};
+    const kvs_retrieve_context ret_ctx = {option, (void *)cb_ctx, (void *)&q_sem};
     kvs_result ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
     if(ret != KVS_SUCCESS) {
       printf("kv_get_async error %d\n", ret);
@@ -239,10 +253,12 @@ namespace kvssd {
   }
 
   kvs_result KV_DEV::kv_delete_async(leveldb::Slice *key, void (*callback)(void *), void *args) {
+    sem_wait(&q_sem);
     kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
     kvskey->key = (void *)key->data();
     kvskey->length = (uint8_t)key->size();
-    const kvs_delete_context del_ctx = { {false}, (void *)callback, (void *)args};
+    cb_context *cb_ctx = new cb_context {callback, args};
+    const kvs_delete_context del_ctx = { {false}, (void *)cb_ctx, (void *)&q_sem};
     kvs_result ret = kvs_delete_tuple_async(cont_->cont_handle, kvskey, &del_ctx, on_io_complete);
 
     if(ret != KVS_SUCCESS) {
