@@ -328,7 +328,7 @@ public:
             db_->Write(write_options_, &batch);
         }
         else { // active KV got updated before REPLACE
-            printf("rare case when doing GC\n"); // TODO
+            //printf("rare case when doing GC\n"); // TODO
         }
         return match;
     }
