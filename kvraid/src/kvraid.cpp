@@ -316,9 +316,9 @@ void SlabQ::processQ(int id) {
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
                     // update
-                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     int del_slab_id = stale_key.get_slab_id();
                     parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
+                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
