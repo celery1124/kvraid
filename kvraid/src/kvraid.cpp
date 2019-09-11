@@ -316,9 +316,9 @@ void SlabQ::processQ(int id) {
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
                     // update
+                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     int del_slab_id = stale_key.get_slab_id();
                     parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
-                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
@@ -329,7 +329,7 @@ void SlabQ::processQ(int id) {
                     // match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, kvr_ctxs[i]->kv_ctx->pkey, &pkeys[i]);
                     // if (!match) { // reclaimed kv got updated/deleted (rare)
                     //     // we need to update the deleteQ
-                    //     delete_q.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
+                    //     delete_q_.erase(kvr_ctxs[i]->kv_ctx->pkey->get_seq());
                     //     dq_insert(pkeys[i].get_seq());                        
                     // }
                 }
@@ -375,65 +375,57 @@ void SlabQ::processQ(int id) {
 }
 
 void SlabQ::dq_insert(uint64_t index) {
-    delete_q.insert(index);
+    delete_q_.insert(index);
 }
 
-void KVRaid::DoTrim(int slab_id) {
+void SlabQ::DoTrim() {
     std::vector<uint64_t> groups;
-    SlabQ *slab = &slabs_[slab_id];
-    slab->get_delete_ids(groups, MAX_TRIM_NUM);
+    get_delete_ids(groups, MAX_TRIM_NUM);
 
     for (auto it = groups.begin(); it != groups.end(); ++it) {
         uint64_t group_id = *it;
         int dev_idx = group_id%(k_+r_);
         //physical trim
         for (int i = 0; i < k_; i++) {
-            phy_key *phykey = new phy_key(slab_id, group_id*k_ + i);
+            phy_key *phykey = new phy_key(sid_, group_id*k_ + i);
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
-            ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
+            parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
             dev_idx = (dev_idx+1)%(k_+r_);
         }
         for (int i = 0; i < r_; i++) {
-            phy_key *phykey = new phy_key(slab_id, group_id*k_ );
+            phy_key *phykey = new phy_key(sid_, group_id*k_ );
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
-            ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
+            parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
             dev_idx = (dev_idx+1)%(k_+r_);
         }
     }
-
-
-    data_volume_.fetch_sub(slab_list_[slab_id]*groups.size()*(k_+r_), std::memory_order_relaxed);
 }
 
-void KVRaid::DoTrimAll(int slab_id) {
+void SlabQ::DoTrimAll() {
     std::vector<uint64_t> groups;
-    SlabQ *slab = &slabs_[slab_id];
-    slab->get_all_delete_ids(groups);
+    get_all_delete_ids(groups);
 
     for (auto it = groups.begin(); it != groups.end(); ++it) {
         uint64_t group_id = *it;
         int dev_idx = group_id%(k_+r_);
         //physical trim
         for (int i = 0; i < k_; i++) {
-            phy_key *phykey = new phy_key(slab_id, group_id*k_ + i);
+            phy_key *phykey = new phy_key(sid_, group_id*k_ + i);
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
-            ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
+            parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
             dev_idx = (dev_idx+1)%(k_+r_);
         }
         for (int i = 0; i < r_; i++) {
-            phy_key *phykey = new phy_key(slab_id, group_id*k_ );
+            phy_key *phykey = new phy_key(sid_, group_id*k_ );
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
-            ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
+            parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
             dev_idx = (dev_idx+1)%(k_+r_);
         }
     }
-
-
-    data_volume_.fetch_sub(slab_list_[slab_id]*groups.size()*(k_+r_), std::memory_order_relaxed);
 }
 
 void on_reclaim_get_complete(void *args) {
@@ -444,27 +436,25 @@ void on_reclaim_get_complete(void *args) {
     delete ctx;
 }
 
-void KVRaid::DoReclaim(int slab_id) {
+void SlabQ::DoReclaim() {
     std::vector<uint64_t> actives;
     std::vector<uint64_t> groups;
-    int slab_size = slab_list_[slab_id];
-    SlabQ *slab = &slabs_[slab_id];
-    DeleteQ *dq = &(slab->delete_q);
+    int slab_size = slab_size_;
 
     // scan delete q
-    dq->scan(min_num_invalids_, actives, groups);
+    delete_q_.scan(parent_->min_num_invalids_, actives, groups);
     if (groups.size() == 0) return;
 
     // DO reclaim
     int num_ios = actives.size();
     moodycamel::BlockingConcurrentQueue<kv_context *> kvQ;
     for (auto it = actives.begin(); it != actives.end(); ++it) {
-        int dev_idx = slab->get_dev_idx(*it);
-        phy_key *pkey = new phy_key(slab_id, *it);
+        int dev_idx = get_dev_idx(*it);
+        phy_key *pkey = new phy_key(sid_, *it);
         char *c_val = (char*)malloc(slab_size);
         phy_val *pval = new phy_val(c_val, slab_size);
         reclaim_get_context *aget_ctx = new reclaim_get_context {num_ios, pkey, pval, &kvQ};
-        ssds_[dev_idx].kv_aget(pkey, pval, on_reclaim_get_complete, aget_ctx);
+        parent_->ssds_[dev_idx].kv_aget(pkey, pval, on_reclaim_get_complete, aget_ctx);
     }
 
     int count;
@@ -481,16 +471,12 @@ void KVRaid::DoReclaim(int slab_id) {
             mv_val->val = kvs[i]->pval->c_val;
             unpack_value(kvs[i]->pval->c_val, mv_key, NULL);
             kvr_context* kvr_ctx = new kvr_context(KVR_REPLACE, mv_key, mv_val, kvs[i]);
-            slab->q.enqueue(kvr_ctx);
+            q.enqueue(kvr_ctx);
             kvr_ctx_vec.push_back(kvr_ctx);
         }
         delete [] kvs;
         num_ios -= count;
     }
-
-    data_volume_.fetch_add(slab_list_[slab_id]*actives.size()*k_/r_, std::memory_order_relaxed);
-    data_volume_.fetch_sub(slab_list_[slab_id]*groups.size()*(k_+r_), std::memory_order_relaxed);
-
 
     // wait for all IO complete
     for (int i = 0; i < kvr_ctx_vec.size(); i++) {
@@ -505,11 +491,11 @@ void KVRaid::DoReclaim(int slab_id) {
             // replace
             phy_key rd_pkey;
             bool match;
-            match = key_map_->readtestupdate(&skey, &rd_pkey, ack_kvr_ctx->kv_ctx->pkey, &(ack_kvr_ctx->replace_key));
+            match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, ack_kvr_ctx->kv_ctx->pkey, &(ack_kvr_ctx->replace_key));
             if (!match) { // reclaimed kv got updated/deleted (rare)
                 // we need to update the deleteQ
-                slabs_[slab_id].delete_q.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq());
-                slabs_[slab_id].dq_insert(ack_kvr_ctx->replace_key.get_seq());                        
+                delete_q_.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq());
+                dq_insert(ack_kvr_ctx->replace_key.get_seq());                        
             }
         }
 
@@ -521,10 +507,10 @@ void KVRaid::DoReclaim(int slab_id) {
     }
 
     // release phy key (for trim)
-    slab->add_delete_ids(groups);    
+    add_delete_ids(groups);    
 }
 
-bool KVRaid::CheckGCTrigger(int slab_id) {
+bool SlabQ::CheckGCTrigger() {
     // Three conditions to trigger GC, 
     // 1, Device usage to acual data volume ratio pass a certain threshold;
     // 2, Device utilization pass a certain threshold;
@@ -533,31 +519,29 @@ bool KVRaid::CheckGCTrigger(int slab_id) {
     //     get_util() >= GC_DEV_UTIL_THRES || 
     //     slabs_[slab_id].dq_size() >= GC_DELETE_Q_THRES;
     
-    return get_util() >= GC_DEV_UTIL_THRES;
+    return parent_->get_util() >= GC_DEV_UTIL_THRES;
 }
 
-void KVRaid::DoGC() {
-    for (int i = 0; i < num_slab_; i++) {
-        SlabQ *slab = &slabs_[i];
-        // 1, check trim list and do trim
-        DoTrim(i);
-        // 2, check GC trigger condition
-        if (CheckGCTrigger(i)) {
-            DoReclaim(i);
-        }
+void SlabQ::DoGC() {
+    
+    // 1, check trim list and do trim
+    DoTrim();
+    // 2, check GC trigger condition
+    if (CheckGCTrigger()) {
+        DoReclaim();
     }
     
 }
 
-void KVRaid::bg_GC() {
+void SlabQ::bg_GC() {
     const auto timeWindow = std::chrono::milliseconds(200);
 
     while(true)
     {
         // check thread shutdown
         {
-            std::unique_lock<std::mutex> lck (thread_m_);
-            if (shutdown_ == true) break;
+            std::unique_lock<std::mutex> lck (gc_thread_m_);
+            if (gc_shutdown_ == true) break;
         }
         auto start = std::chrono::steady_clock::now();
         DoGC();
@@ -571,11 +555,8 @@ void KVRaid::bg_GC() {
         }
     }
     // clean up delete_seq_
-    for (int i = 0; i < num_slab_; i++) {
-        SlabQ *slab = &slabs_[i];
-        // trim all delete_seq_
-        DoTrimAll(i);
-    }
+    // trim all delete_seq_
+    DoTrimAll();
 }
 
 int KVRaid::kvr_get_slab_id(int size) {
@@ -603,8 +584,6 @@ bool KVRaid::kvr_insert(kvr_key *key, kvr_value *value) {
     // write to the context queue
     kvr_context kvr_ctx(KVR_INSERT, key, &new_value);
     slab->q.enqueue(&kvr_ctx);
-
-    data_volume_.fetch_add(slab_list_[slab_id]*k_/r_, std::memory_order_relaxed);
 
     //wait for IOs finish
     {
@@ -638,8 +617,6 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
     }
 
     req_key_fl_.UnLock(skey, l);
-
-    data_volume_.fetch_add(slab_list_[slab_id]*k_/r_, std::memory_order_relaxed);
 
     free(pack_val);
     return true;
