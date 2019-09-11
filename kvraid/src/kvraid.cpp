@@ -140,7 +140,7 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
     }
 }
 
-void DeleteQ::erase(uint64_t index) {
+bool DeleteQ::erase(uint64_t index) {
     uint64_t group_id = index/group_size_;
     uint8_t group_offset = index%group_size_;
     bool found = false;
@@ -148,7 +148,7 @@ void DeleteQ::erase(uint64_t index) {
     auto it = group_list_.find(group_id);
     if (it == group_list_.end()) {
         printf("KVR_REPLACE cannot find updated relcaim group_id in delete q\n");
-        exit(-1);
+        return false;
     }
     for (auto i = it->second.begin(); i!=it->second.end(); ++i) {
         if (*i == group_offset) {
@@ -156,13 +156,12 @@ void DeleteQ::erase(uint64_t index) {
             found = true; break;
         }
     }
-    if (!found) {
-        printf("KVR_REPLACE cannot find updated relcaim id in delete q\n");
-        exit(-1);
-    }
+    
     count_ -= 1;
     if (it->second.size() == 0)
         group_list_.erase(group_id);
+    
+    return found;
 }
 
 static void pack_value(char *dst, kvr_key *key, kvr_value *val) {
@@ -315,7 +314,6 @@ void SlabQ::processQ(int id) {
                     //printf("insert %s -> %d\n",skey.c_str(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
-                    std::lock_guard<std::mutex> guard(parent_->processq_mutex_);
                     // update
                     parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     int del_slab_id = stale_key.get_slab_id();
@@ -488,7 +486,6 @@ void SlabQ::DoReclaim() {
         }
         // update mapping for KVR_REPLACE
         if (ack_kvr_ctx->ops == KVR_REPLACE) {
-            std::lock_guard<std::mutex> guard(parent_->processq_mutex_);
             std::string skey = std::string(ack_kvr_ctx->key->key, ack_kvr_ctx->key->length);
             // replace
             phy_key rd_pkey;
@@ -496,7 +493,7 @@ void SlabQ::DoReclaim() {
             match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, ack_kvr_ctx->kv_ctx->pkey, &(ack_kvr_ctx->replace_key));
             if (!match) { // reclaimed kv got updated/deleted (rare)
                 // we need to update the deleteQ
-                delete_q_.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq());
+                while (!delete_q_.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq())) usleep(100);
                 dq_insert(ack_kvr_ctx->replace_key.get_seq());                        
             }
         }

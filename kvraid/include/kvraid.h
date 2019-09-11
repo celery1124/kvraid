@@ -139,7 +139,7 @@ public:
     void insert(uint64_t index);
     void scan (int min_num_invalids, std::vector<uint64_t>& reclaims, 
     std::vector<uint64_t>& groups);
-    void erase(uint64_t index);
+    bool erase(uint64_t index);
     int size() { return count_; }
 };
 
@@ -302,8 +302,6 @@ private:
     int r_;  // number of parity 
 	int num_slab_;
 	int *slab_list_;
-    // atomic KVR_UPDATE & KVR_REPLACE on modify mapping table and delete q
-    std::mutex processq_mutex_; 
 
     // device
     KV_DEVICE *ssds_;
