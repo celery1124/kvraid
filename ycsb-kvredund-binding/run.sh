@@ -10,8 +10,8 @@ rm *.log # remove uncessary files
 threads="32"
 #tests="evalf"
 #tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
-tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr82_uniform wr73_uniform wr64_uniform"
-kvredund_type="0 1 2" # 0-KVRaid 1-KVEC 2-KVMirror
+tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
+kvredund_type="1 2 0" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 gc_ena="0 1"
 
@@ -53,7 +53,7 @@ do
 						
 						sleep 3
 						# ycsb load
-						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads 2> err.log 
+						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 2> err.log 
 							
 						echo load >> $result_txt
 						printf "load_tp: " >> $result_txt
@@ -81,7 +81,7 @@ do
 
 						# ycsb run 
 
-						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads 2> err.log  
+						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 2> err.log  
 						echo "run" >> $result_txt
 						printf "run_tp: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>3)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
@@ -129,7 +129,7 @@ do
 						cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 						printf "invalid-alive: " >> $result_txt
-						grep "invalid-alive" | awk '{print $4}'>> $result_txt
+						cat kv_device.log|grep "invalid-alive" | awk '{print $4}'>> $result_txt
 						printf "\n" >> $result_txt
 
 						echo "" >> $result_txt

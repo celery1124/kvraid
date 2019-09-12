@@ -140,7 +140,9 @@ public:
         for (auto it = group_list_.begin(); it != group_list_.end(); ++it) {
             for (int i = 0; i < it->second.size(); i++) total_invalid++;
         }
-        printf("slab %d, invalid-alive %d\n",parent_->get_id(), total_invalid);
+        FILE *fd = fopen("kv_device.log","a");
+        fprintf(fd, "slab %d, invalid-alive %d\n",parent_->get_id(), total_invalid);
+        fclose(fd);
     }
     void insert(uint64_t index);
     void scan (int min_num_invalids, std::vector<uint64_t>& reclaims, 
