@@ -597,9 +597,9 @@ bool KVRaid::kvr_insert(kvr_key *key, kvr_value *value) {
     {
         std::unique_lock<std::mutex> lck(kvr_ctx.mtx);
         while (!kvr_ctx.ready) kvr_ctx.cv.wait(lck);
+    }
         std::string skey(key->key, key->length);
         key_map_->insert(&skey, &(kvr_ctx.replace_key));
-    }
     free(pack_val);
     return true;
 }
