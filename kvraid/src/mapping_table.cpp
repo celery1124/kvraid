@@ -301,15 +301,15 @@ public:
         bool exist;
         leveldb::ReadOptions options;
         std::string value;
-        if (db_->Get(options, leveldb::Slice(*key), &value).ok()) {
-            exist = true;
-            rd_val->decode(&value);
-            // update
-            leveldb::WriteBatch batch;
-            std::string val_s = wr_val->ToString();
-            batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
-            db_->Write(write_options_, &batch);
-        }
+        assert (db_->Get(options, leveldb::Slice(*key), &value).ok());
+        exist = true;
+        rd_val->decode(&value);
+        // update
+        leveldb::WriteBatch batch;
+        std::string val_s = wr_val->ToString();
+        batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
+        db_->Write(write_options_, &batch);
+    
         return exist;
     }
 
