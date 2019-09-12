@@ -141,7 +141,7 @@ public:
             for (int i = 0; i < it->second.size(); i++) total_invalid++;
         }
         FILE *fd = fopen("kv_device.log","a");
-        fprintf(fd, "slab %d, invalid-alive %d\n",parent_->get_id(), total_invalid);
+        fprintf(fd, "invalid-alive %d\n", total_invalid);
         fclose(fd);
     }
     void insert(uint64_t index);
@@ -221,7 +221,7 @@ public:
     DeleteQ delete_q_;
 
     moodycamel::BlockingConcurrentQueue<kvr_context*> q;
-    int get_id() {return sid_;}
+    int get_id() ;
     SlabQ(KVRaid *p, int id, int size, int num_d, int num_r, EC *ec, uint64_t seq, int num_pq, bool GC_ENA) : 
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), 
     ec_(ec), seq_(seq), num_pq_(num_pq), delete_q_(this, num_d, num_d+num_r),

@@ -247,6 +247,8 @@ static int dequeue_bulk_timed(moodycamel::BlockingConcurrentQueue<T*> &q,
     return total_count;
 };
 
+int SlabQ::get_id() {return sid_;}
+
 void SlabQ::processQ(int id) {
     while (true) {
         
