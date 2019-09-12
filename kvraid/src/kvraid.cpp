@@ -7,6 +7,7 @@
 
 #define RECLAIMS_BULKS 2 * k_
 #define MAX_TRIM_NUM 1024
+#define TRIM_GUARD_NUM 512
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
 #define GC_DEV_UTIL_THRES 0.5
@@ -16,10 +17,10 @@
 
 namespace kvraid {
 
-void SlabQ::get_delete_ids(std::vector<uint64_t>& groups, int trim_num) {
+void SlabQ::get_delete_ids(std::vector<uint64_t>& groups, int trim_num, int guard_num) {
     {
         std::unique_lock<std::mutex> lock(dseq_mutex_);
-        while (!delete_seq_.empty() && trim_num > 0) {
+        while (!delete_seq_.empty() && trim_num > 0 && delete_seq_.size() >= guard_num) {
             groups.push_back(delete_seq_.front());
             delete_seq_.pop();
             trim_num--;
@@ -379,7 +380,7 @@ void SlabQ::dq_insert(uint64_t index) {
 
 void SlabQ::DoTrim() {
     std::vector<uint64_t> groups;
-    get_delete_ids(groups, MAX_TRIM_NUM);
+    get_delete_ids(groups, MAX_TRIM_NUM, TRIM_GUARD_NUM);
 
     for (auto it = groups.begin(); it != groups.end(); ++it) {
         uint64_t group_id = *it;

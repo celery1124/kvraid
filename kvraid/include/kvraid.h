@@ -135,7 +135,13 @@ public:
     
     DeleteQ() : count_(0){}
     DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(k_), count_(0){}
-    ~DeleteQ(){}
+    ~DeleteQ(){
+        int total_invalid = 0;
+        for (auto it = group_list_.begin(); it != group_list_.end(); ++it) {
+            for (int i = 0; i < it->second.size(); i++) total_invalid++;
+        }
+        printf("slab %d, invalid-alive %d\n",parent_->get_id(), total_invalid);
+    }
     void insert(uint64_t index);
     void scan (int min_num_invalids, std::vector<uint64_t>& reclaims, 
     std::vector<uint64_t>& groups);
@@ -256,7 +262,7 @@ public:
     }
     void processQ(int id);
     void get_all_delete_ids(std::vector<uint64_t>& groups);
-    void get_delete_ids(std::vector<uint64_t>& groups, int trim_num);
+    void get_delete_ids(std::vector<uint64_t>& groups, int trim_num, int guard_num);
     void add_delete_ids(std::vector<uint64_t>& groups);
     void add_delete_id(uint64_t group_id);
     uint64_t get_new_group_id();
@@ -363,6 +369,7 @@ public:
         for (int i = 0; i < num_slab; i++) {
             slab_list_[i] = s_list[i];
             (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_, slab_seq[i], 1, GC_ENA);
+            usleep(10000);
         }
         delete slab_seq;
 
