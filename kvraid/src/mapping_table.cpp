@@ -270,7 +270,8 @@ public:
         options.create_if_missing = true;
         options.block_cache = cache_;
         options.max_open_files = 100000;
-	options.max_file_size = 500 << 10;
+	    options.max_file_size = 500 << 10;
+        options.write_buffer_size = 4 << 20;
 
         options.filter_policy = NULL;
         options.reuse_logs = true;
