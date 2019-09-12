@@ -494,7 +494,11 @@ void SlabQ::DoReclaim() {
             match = parent_->key_map_->readtestupdate(&skey, &rd_pkey, ack_kvr_ctx->kv_ctx->pkey, &(ack_kvr_ctx->replace_key));
             if (!match) { // reclaimed kv got updated/deleted (rare)
                 // we need to update the deleteQ
-                while (!delete_q_.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq())) usleep(100);
+                int retry_cnt = 0;
+                while (!delete_q_.erase(ack_kvr_ctx->kv_ctx->pkey->get_seq())) {
+                    usleep(100);
+                    if (++retry_cnt >= 3) break; // double update, direct insert replace to delete q
+                }
                 dq_insert(ack_kvr_ctx->replace_key.get_seq());                        
             }
         }
