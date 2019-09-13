@@ -421,7 +421,7 @@ public:
             slabs_[i].shutdown_workers();
             slabs_[i].shutdown_gc();
         }
-
+        shutdown_bg();
         // save KVRaid state
         save_meta();
 
