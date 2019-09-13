@@ -180,6 +180,27 @@ static void unpack_value(char *src, kvr_key *key, kvr_value *val) {
     }
 }
 
+static void new_unpack_value(int pack_size, int pack_id, char *src, kvr_key *key, kvr_value *val) {
+    char *p = src;
+    for (int i = 0; i < pack_size; i++) {
+        uint8_t key_len = *((uint8_t*)p);
+        p += KEY_SIZE_BYTES;
+        if (key != NULL) {
+            key->length = key_len;
+            key->key = p;
+        }
+        p += key_len;
+        uint32_t val_len = *((uint32_t *)(p));
+        p += VAL_SIZE_BYTES;
+        if (val != NULL) {
+            val->length = val_len;
+            val->val = p;
+        }
+        p += val_len;
+        if (i == pack_id) break;
+    }
+}
+
 static void on_bulk_write_complete(void *arg) {
     bulk_io_context *bulk_io_ctx = (bulk_io_context *)arg;
     if(!bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->num_ios)) {
@@ -273,18 +294,20 @@ void SlabQ::processQ(int id) {
             int pack_count = 0;
             int chunk_start = -1, chunk_end = -1;
             for (int i = 0; i < k_; i++) {
-                if (pack_id_[i] == pack_size_-1) continue;
+                if (pack_id_[i] == pack_size_) continue;
                 for (int j = pack_id_[i]; j < pack_size_; j++) {
                     if (chunk_start == -1) chunk_start = i;
-                    memcpy(data_[i]+pack_offset_[i], kvr_ctxs[i]->value->val, kvr_ctxs[i]->value->length);
+                    memcpy(data_[i]+pack_offset_[i], kvr_ctxs[pack_count]->value->val, kvr_ctxs[pack_count]->value->length);
                     pack_id_[i]++;
-                    pack_offset_[i] += kvr_ctxs[i]->value->length;
+                    pack_offset_[i] += kvr_ctxs[pack_count]->value->length;
                     pack_count++;
+
+                    if (pack_count == count) {
+                        chunk_end = i;
+                        break;
+                    }
                 }
-                if (pack_count == count) {
-                    chunk_end = i;
-                    break;
-                }
+                if (chunk_end != -1) break;
             }
             ec_->encode(data_, code_, slab_size_*pack_size_);
 
@@ -309,7 +332,7 @@ void SlabQ::processQ(int id) {
             // write to index map
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);
             for (int i = 0; i < io_count; i++) {
-                (void) new (&pkeys[i]) phy_key(sid_, group_id*k_ + chunk_start + i);
+                (void) new (&pkeys[i]) phy_key(sid_, group_id*k_*pack_size_ + (chunk_start + i)*pack_size_);
                 
                 // write data
                 (void) new (&pvals[i]) phy_val(data_[chunk_start+i], pack_offset_[chunk_start+i]);
@@ -323,18 +346,19 @@ void SlabQ::processQ(int id) {
                 phy_key stale_key;
                 int chunk_id = (total_count + i)/pack_size_ - chunk_start;
 
-                kvr_ctxs[i]->replace_key = pkeys[chunk_id];
+                phy_key assigned_pkey(sid_, group_id*k_*pack_size_ + i + total_count);
+                kvr_ctxs[i]->replace_key = assigned_pkey;
                 if (kvr_ctxs[i]->ops == KVR_INSERT) {
                     // insert 
-                    parent_->key_map_->insert(&skey, &pkeys[chunk_id]);
-                    //printf("insert %s -> %d\n",skey.c_str(), pkeys[chunk_id].get_seq());
+                    parent_->key_map_->insert(&skey, &assigned_pkey);
+                    //printf("insert %s -> %d\n",skey.c_str(), assigned_pkey.get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
                     // update
-                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[chunk_id]);
+                    parent_->key_map_->readmodifywrite(&skey, &stale_key, &assigned_pkey);
                     int del_slab_id = stale_key.get_slab_id();
                     parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
-                    //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[chunk_id].get_seq());
+                    //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), assigned_pkey.get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
                     // // replace
@@ -361,7 +385,7 @@ void SlabQ::processQ(int id) {
             dev_idx = (dev_idx_start+k_) % (k_+r_);
             for (int j = 0; j < r_; j++) {
                 int i = j+io_count;
-                (void) new (&pkeys[i]) phy_key(sid_, group_id*k_);
+                (void) new (&pkeys[i]) phy_key(sid_, group_id*k_*pack_size_);
                 (void) new (&pvals[i]) phy_val(code_buf[j], slab_size_*pack_size_);
 
                 parent_->ssds_[dev_idx].kv_astore(&pkeys[i], &pvals[i], on_bulk_write_complete, (void*)bulk_io_ctx);
@@ -712,18 +736,22 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     }
     
     int slab_id = pkey.get_slab_id();
+    int pack_size = slabs_[slab_id].pack_size_;
     int seq = pkey.get_seq();
-    int dev_idx = ((seq/k_ % (k_+r_)) + seq%k_) % (k_+r_);
+    int pack_id = seq%pack_size;
+    int dev_idx = ((seq/k_/pack_size % (k_+r_)) + (seq%(k_*pack_size)/pack_size)) % (k_+r_);
 
     char *actual_val = (char*)malloc(slab_list_[slab_id]);
     phy_val pval(actual_val, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
+    pkey.phykey = pkey.phykey - pack_id;
     ssds_[dev_idx].kv_get(&pkey, &pval);
 
     //req_key_fl_.UnLock(skey, l);
 
     kvr_value new_val;
-    unpack_value(pval.c_val, NULL, &new_val);
+    //unpack_value(pval.c_val, NULL, &new_val);
+    new_unpack_value(pack_size, pack_id, pval.c_val, NULL, &new_val);
 
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);

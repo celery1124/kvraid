@@ -211,7 +211,8 @@ int main() {
     }
     KVR *kvr;
     //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
+    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
+    kvr = NewKVRaidPack(k, r, 2, slab_list, kvs_conts, Mem, true);
     //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
     //kvr = NewKVMirror(k, r, kvs_conts);
 
@@ -219,7 +220,7 @@ int main() {
     std::thread *th_update[16];
     std::thread *th_get[16];
     for (int i = 0; i< thread_cnt; i++) {
-        th_load[i] = new std::thread(load, kvr, 100000 , true, i);
+        th_load[i] = new std::thread(load, kvr, 1000 , true, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
@@ -231,13 +232,15 @@ int main() {
     // close kvr and open again (for testing)
     delete kvr; 
     //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
+    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
+    kvr = NewKVRaidPack(k, r, 2, slab_list, kvs_conts, Mem, true);
 
     // seek(kvr, 19);
     // printf("finish iteraotr test\n\n");
 
     for (int i = 0; i< thread_cnt; i++) {
-        th_get[i] = new std::thread(erased_get, kvr, 100 , i);
+        //th_get[i] = new std::thread(erased_get, kvr, 100 , i);
+        th_get[i] = new std::thread(get, kvr, 100 , i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {

@@ -170,6 +170,7 @@ typedef struct {
 
 class KVRaidPack; // forward declaration
 class SlabQ {
+    friend class KVRaidPack;
 private:
     int sid_;
     // slab info
@@ -215,6 +216,8 @@ private:
     void clear_data_buf() {
         for (int i = 0; i<k_; i++) {
             memset(data_[i], 0, slab_size_);
+            pack_id_[i] = 0;
+            pack_offset_[i] = 0;
         }
     }
 public:

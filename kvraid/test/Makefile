@@ -10,7 +10,7 @@ MAP_SRCS=$(SRC)/mapping_table.cpp
 DEV_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c 
 KVRAID_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c $(SRC)/kvraid.cpp
 KVEC_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c $(SRC)/kvec.cpp
-KVR_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c $(SRC)/kvec.cpp $(SRC)/kvraid.cpp $(SRC)/kvmirror.cpp $(SRC)/MurmurHash2.c
+KVR_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c $(SRC)/kvec.cpp $(SRC)/kvraid.cpp $(SRC)/kvmirror.cpp $(SRC)/kvraid_pack.cpp $(SRC)/MurmurHash2.c
 
 test_dev:
 	$(CC) test_kvdevice.cpp -o test_kvdevice $(DEV_SRCS)  $(INCLUDES) $(LIBS) $(CXXFLAG_DBG)
