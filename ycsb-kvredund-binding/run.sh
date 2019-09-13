@@ -10,15 +10,16 @@ rm *.log # remove uncessary files
 threads="64"
 #tests="evalf"
 #tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
-tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
+#tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
+tests="wr91_uniform wr73_uniform wr55_uniform wr37_uniform wr19_uniform"
 kvredund_type="1 2 0" # 0-KVRaid 1-KVEC 2-KVMirror
 meta_type="0 1" # 0-Mem 1-Storage (leveldb)
 gc_ena="0 1"
 
 
-recordcnt='25000000'
+recordcnt='50000000'
 sed -i 's/recordcount=.*/recordcount='$recordcnt'/' workloads/*_uniform
-opcnt='20000000'
+opcnt='50000000'
 sed -i 's/operationcount=.*/operationcount='$opcnt'/' workloads/*_uniform
 
 for exp_id in $( seq 1 $numofexp )
@@ -51,7 +52,7 @@ do
 						nvme format /dev/nvme4n1
 						nvme format /dev/nvme5n1
 						
-						sleep 3
+						sleep 10
 						# ycsb load
 						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 2> err.log 
 							
@@ -77,7 +78,7 @@ do
 						cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 						rm -rf kv_device.log
-						sleep 3
+						sleep 10
 
 						# ycsb run 
 
@@ -134,7 +135,7 @@ do
 
 						echo "" >> $result_txt
 						rm -rf *.log
-						sleep 3
+						sleep 10
 						
 					done
 				done
