@@ -130,8 +130,6 @@ public:
     std::unordered_map<uint64_t,std::vector<uint8_t>> group_list_;
     std::mutex gl_mutex_;
     
-    int scan_pointer_;
-    
     DeleteQ() {}
     DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(k_) {}
     ~DeleteQ(){
