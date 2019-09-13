@@ -127,14 +127,13 @@ public:
     SlabQ* parent_;
     int k_;
     int group_size_;
-    uint32_t count_;
     std::unordered_map<uint64_t,std::vector<uint8_t>> group_list_;
     std::mutex gl_mutex_;
     
     int scan_pointer_;
     
-    DeleteQ() : count_(0){}
-    DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(k_), count_(0){}
+    DeleteQ() {}
+    DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(k_) {}
     ~DeleteQ(){
         int total_invalid = 0;
         for (auto it = group_list_.begin(); it != group_list_.end(); ++it) {
@@ -148,7 +147,6 @@ public:
     void scan (int min_num_invalids, std::vector<uint64_t>& reclaims, 
     std::vector<uint64_t>& groups);
     bool erase(uint64_t index);
-    int size() { return count_; }
 };
 
 class SlabQ;
@@ -271,7 +269,6 @@ public:
     uint64_t get_curr_group_id();
     bool track_finish(int id, int num_ios);
     void dq_insert(uint64_t index);
-    int dq_size() {return delete_q_.size();}
 
     int get_dev_idx (uint64_t seq) {
         uint64_t group_id = seq/k_;
@@ -325,6 +322,21 @@ private:
 	int kvr_get_slab_id(int size);
     int process_slabq();
 
+    // bg thread to check dev utilization
+    std::thread bg_thrd_;
+    std::mutex bg_thread_m_;
+    bool bg_shutdown_;
+    std::atomic<bool> do_gc_;
+
+    void bg_check();
+    bool CheckGCTrigger();
+    void shutdown_bg() {
+        {
+            std::unique_lock<std::mutex> lck (bg_thread_m_);
+            bg_shutdown_ = true;
+        }
+        bg_thrd_.join();
+    }
 
     // data volume info
     std::atomic<int64_t> data_volume_; //estimate data vol, not accurate
@@ -349,7 +361,7 @@ private:
     
 public:
 	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA) :
-    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), data_volume_(0){
+    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), do_gc_(false), data_volume_(0){
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
         ec_.setup();
@@ -395,6 +407,10 @@ public:
             else break;
         }
         min_num_invalids_ -= GC_MIN_INVALID_BIAS;  
+
+        // BG check thread
+        bg_shutdown_ = false;
+        bg_thrd_ = std::thread(&KVRaid::bg_check, this);
 
 	}
 

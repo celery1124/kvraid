@@ -519,7 +519,7 @@ bool SlabQ::CheckGCTrigger() {
     //     get_util() >= GC_DEV_UTIL_THRES || 
     //     slabs_[slab_id].dq_size() >= GC_DELETE_Q_THRES;
     
-    return parent_->get_util() >= GC_DEV_UTIL_THRES;
+    return parent_->do_gc_.load();
 }
 
 void SlabQ::DoGC() {
@@ -557,6 +557,41 @@ void SlabQ::bg_GC() {
     // clean up delete_seq_
     // trim all delete_seq_
     DoTrimAll();
+}
+
+bool KVRaid::CheckGCTrigger() {
+    // Three conditions to trigger GC, 
+    // 1, Device usage to acual data volume ratio pass a certain threshold;
+    // 2, Device utilization pass a certain threshold;
+    // 3, delete_q_ size is too large (we want to keep the invalid-alive low)
+    // return get_usage()/get_volume() > GC_DEV_USAGE_VOL_RATIO_THRES ||
+    //     get_util() >= GC_DEV_UTIL_THRES || 
+    //     slabs_[slab_id].dq_size() >= GC_DELETE_Q_THRES;
+    
+    return get_util() >= GC_DEV_UTIL_THRES;
+}
+
+void KVRaid::bg_check() {
+    const auto timeWindow = std::chrono::milliseconds(500);
+
+    while(true)
+    {
+        // check thread shutdown
+        {
+            std::unique_lock<std::mutex> lck (bg_thread_m_);
+            if (bg_shutdown_ == true) break;
+        }
+        auto start = std::chrono::steady_clock::now();
+        do_gc_.store(CheckGCTrigger());
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = end - start;
+
+        auto timeToWait = timeWindow - elapsed;
+        if(timeToWait > std::chrono::milliseconds::zero())
+        {
+            std::this_thread::sleep_for(timeToWait);
+        }
+    }
 }
 
 int KVRaid::kvr_get_slab_id(int size) {
