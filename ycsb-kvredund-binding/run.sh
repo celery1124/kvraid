@@ -7,7 +7,7 @@ result_dir=$HOME/$2
 mkdir -p $result_dir
 rm *.log # remove uncessary files
 
-threads="32"
+threads="64"
 #tests="evalf"
 #tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
 tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
