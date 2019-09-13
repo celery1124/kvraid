@@ -699,8 +699,11 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     char *actual_val = (char*)malloc(slab_list_[slab_id]);
     phy_val pval(actual_val, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
-    ssds_[dev_idx].kv_get(&pkey, &pval);
-
+    exist = ssds_[dev_idx].kv_get(&pkey, &pval);
+    if (!exist) {
+        value->length = 0;
+        return false;
+    }
     //req_key_fl_.UnLock(skey, l);
 
     kvr_value new_val;
