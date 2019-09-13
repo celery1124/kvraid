@@ -94,15 +94,7 @@ void DeleteQ::insert(uint64_t index) {
     {
         std::unique_lock<std::mutex> lock(gl_mutex_);
         // if whole group is updated, put to trim list
-        if (group_list_[group_id].size() == (k_ - 1)) {
-            group_list_.erase(group_id);
-            parent_->add_delete_id(group_id);
-            count_ -= (k_-1);
-        }
-        else {
-            group_list_[group_id].push_back(group_offset);
-            count_++;
-        }
+        group_list_[group_id].push_back(group_offset);
     }
 }
 
@@ -117,7 +109,6 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
         scan_len++ > MAX_SCAN_LEN_PER_GC) break;
 
         if (it->second.size() >= min_num_invalids) {
-            groups.push_back(it->first);
             // get active list 
             char *tmp_bitmap = (char*)calloc(k_, sizeof(char));
             int num_actives = 0;
@@ -130,14 +121,16 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
                     num_actives++;
                 }
             }
-            
-            count_ -= num_actives;
+            if (num_actives == 0) {// can be trim directly
+                parent_->add_delete_id(it->first);
+            }
+            else
+                groups.push_back(it->first);
             it = group_list_.erase(it);
             free(tmp_bitmap);
         }
         else
             ++it;
-        
     }
 }
 
@@ -158,7 +151,6 @@ bool DeleteQ::erase(uint64_t index) {
         }
     }
     
-    count_ -= 1;
     if (it->second.size() == 0)
         group_list_.erase(group_id);
     
