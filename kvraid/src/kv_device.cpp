@@ -166,6 +166,7 @@ bool KV_DEVICE::kv_get(phy_key *key, phy_val *value)
     const kvs_retrieve_context ret_ctx = {option, 0, 0};
     int ret = kvs_retrieve_tuple(cont_->cont_handle, &kvskey, kvsvalue, &ret_ctx);
     if(ret != KVS_SUCCESS) {
+        return false;
         printf("retrieve tuple %s failed with error 0x%x - %s,\n", key->c_str(), ret, kvs_errstr(ret));
         exit(1);
     }
