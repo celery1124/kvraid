@@ -6,8 +6,8 @@
 #include "kvraid.h"
 
 #define RECLAIMS_BULKS 2 * k_
-#define MAX_TRIM_NUM 1024
-#define TRIM_GUARD_NUM 1024
+#define MAX_TRIM_NUM 512
+#define TRIM_GUARD_NUM 2048
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
 #define GC_DEV_UTIL_THRES 0.5
