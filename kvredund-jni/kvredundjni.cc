@@ -130,7 +130,7 @@ jbyteArray Java_com_yahoo_ycsb_db_KVredund_get(JNIEnv* env, jobject /*jdb*/,
 	kvr->kvr_get(&kv_key, &kv_val);
 
     jbyteArray jret_value = copyBytes(env, kv_val.val, kv_val.length);
-    if (jret_value == nullptr) {
+    if (jret_value == nullptr || jkey_len == 0) {
         // exception occurred
         return nullptr;
     }
