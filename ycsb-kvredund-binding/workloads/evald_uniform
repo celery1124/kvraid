@@ -26,14 +26,14 @@
 # which orders items purely by time, and demands the latest, is very different than 
 # workload here (which we believe is more typical of how people build systems.)
 
-recordcount=100000000
-operationcount=10000000
-minfieldlength=500
+recordcount=25000000
+operationcount=20000000
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
 fieldcount=1
 fieldlength=2000
 fieldlengthdistribution=uniform
+minfieldlength=100
 
 readallfields=true
 writeallfields=true
