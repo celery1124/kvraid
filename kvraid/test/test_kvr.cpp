@@ -107,7 +107,7 @@ void load(KVR *kvr, int num, bool seq, int tid) {
         vals[i].length = OBJ_LEN;
 
         kvr->kvr_insert(&keys[i], &vals[i]);
-        printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+        //printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
     }
     delete [] keys;
     delete [] vals;
@@ -220,7 +220,7 @@ int main() {
     std::thread *th_update[16];
     std::thread *th_get[16];
     for (int i = 0; i< thread_cnt; i++) {
-        th_load[i] = new std::thread(load, kvr, 1000 , true, i);
+        th_load[i] = new std::thread(load, kvr, 100000 , true, i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
