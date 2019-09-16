@@ -129,12 +129,13 @@ class DeleteQ
 public:
     SlabQ* parent_;
     int k_;
+    int pack_size_;
     int group_size_;
     std::unordered_map<uint64_t,std::vector<uint8_t>> group_list_;
     std::mutex gl_mutex_;
     
     DeleteQ() {}
-    DeleteQ(SlabQ* p, int k, int m) : parent_(p), k_(k), group_size_(k_) {}
+    DeleteQ(SlabQ* p, int k) : parent_(p), k_(k) {}
     ~DeleteQ(){
         int total_invalid = 0;
         for (auto it = group_list_.begin(); it != group_list_.end(); ++it) {
@@ -229,10 +230,12 @@ public:
     int get_id() ;
     SlabQ(KVRaidPack *p, int id, int size, int num_d, int num_r, EC *ec, uint64_t seq, int num_pq, bool GC_ENA) : 
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), 
-    ec_(ec), seq_(seq), num_pq_(num_pq), delete_q_(this, num_d, num_d+num_r),
+    ec_(ec), seq_(seq), num_pq_(num_pq), delete_q_(this, num_d),
     gc_ena_(GC_ENA) {
         // calculate pack size (suppose slab size to 2^N)
         pack_size_ = IDEAL_KV_PACK_SIZE / slab_size_ > MAX_PACK_SIZE ? MAX_PACK_SIZE : IDEAL_KV_PACK_SIZE / slab_size_;
+        delete_q_.pack_size_ = pack_size_;
+        delete_q_.group_size_ = k_ * pack_size_;
         // alloacte ec buffer
         data_ = new char*[k_];
         code_ = new char*[r_];
@@ -285,8 +288,8 @@ public:
     void dq_insert(uint64_t index);
 
     int get_dev_idx (uint64_t seq) {
-        uint64_t group_id = seq/k_;
-        int id = seq%k_;
+        uint64_t group_id = seq/(k_*pack_size_);
+        int id = seq%(k_*pack_size_)/pack_size_;
         return ((group_id%(k_+r_)) + id) % (k_+r_);
     }
     void shutdown_workers() {
@@ -415,6 +418,7 @@ public:
 
         // calculate GC cost function 
         // (k+r)/k + (k-x)/x*(k+r)/k <= (r+1)
+        // note: although we pack multiple objects in single data chunk, we use the same ratio as non-packed version
         min_num_invalids_ = k_-1;
         for (int i = k_-1; i>0; i--) {
             if ((r_+1)*i > (k_+r_)) min_num_invalids_ = i;

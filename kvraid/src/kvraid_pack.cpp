@@ -110,12 +110,12 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
 
         if (it->second.size() >= min_num_invalids) {
             // get active list 
-            char *tmp_bitmap = (char*)calloc(k_, sizeof(char));
+            char *tmp_bitmap = (char*)calloc(group_size_, sizeof(char));
             int num_actives = 0;
             for (int i = 0; i< it->second.size(); i++) {
                 tmp_bitmap[it->second[i]] = 1;
             }
-            for (int i = 0; i< k_; i++) {
+            for (int i = 0; i< group_size_; i++) {
                 if(tmp_bitmap[i]==0) {
                     actives.push_back(it->first*group_size_+i);
                     num_actives++;
@@ -507,7 +507,8 @@ void SlabQ::DoReclaim() {
             kvr_value *mv_val = new kvr_value;
             mv_val->length = kvs[i]->pval->actual_len;
             mv_val->val = kvs[i]->pval->c_val;
-            unpack_value(kvs[i]->pval->c_val, mv_key, NULL);
+            int pack_id = kvs[i]->pkey->get_seq() % pack_size_;
+            new_unpack_value(pack_size_, pack_id, kvs[i]->pval->c_val, mv_key, NULL);
             kvr_context* kvr_ctx = new kvr_context(KVR_REPLACE, mv_key, mv_val, kvs[i]);
             q.enqueue(kvr_ctx);
             kvr_ctx_vec.push_back(kvr_ctx);
@@ -798,12 +799,14 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
     }
     
     int slab_id = pkey.get_slab_id();
+    int pack_size = slabs_[slab_id].pack_size_;
     int seq = pkey.get_seq();
-    int dev_idx = ((seq/k_) % (k_+r_) + seq%k_) % (k_+r_);
+    int pack_id = seq%pack_size;
+    int dev_idx = ((seq/k_/pack_size % (k_+r_)) + (seq%(k_*pack_size)/pack_size)) % (k_+r_);
 
     if (dev_idx == erased) {
-        int group_id = seq/k_;
-        int group_offset = seq%k_;
+        int group_id = seq/k_/pack_size;
+        int group_offset = seq%(k_*pack_size);
         int slab_size_ = slab_list_[slab_id];
         int dev_index = group_id % (k_+r_);
 
@@ -822,11 +825,11 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         for (int i = 0; i < (k_+r_); i++) {
             if (dev_index != dev_idx) {
                 if (i < k_) {
-                    (void) new (&pkeys_c[j]) phy_key(slab_id, group_id*k_+i);
+                    (void) new (&pkeys_c[j]) phy_key(slab_id, (group_id*k_+i)*pack_size);
                     (void) new (&pvals_c[j]) phy_val(data[i], slab_size_);
                 }
                 else {
-                    (void) new (&pkeys_c[j]) phy_key(slab_id, group_id*k_);
+                    (void) new (&pkeys_c[j]) phy_key(slab_id, group_id*k_*pack_size);
                     (void) new (&pvals_c[j]) phy_val(codes[i-k_], slab_size_);
                 }
                 ssds_[dev_index].kv_aget(&pkeys_c[j], &pvals_c[j], on_io_complete, (void *)&mons_c[j]);
@@ -842,7 +845,7 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         // EC decode
         ec_.single_failure_decode(logic_erased, data, codes, slab_size_);
         kvr_value new_val;
-        unpack_value(data[logic_erased], NULL, &new_val);
+        new_unpack_value(pack_size, pack_id, data[logic_erased], NULL, &new_val);
         value->length = new_val.length;
         value->val = (char*)malloc(new_val.length);
         memcpy(value->val, new_val.val, new_val.length);
@@ -856,12 +859,13 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
     }
     else {
         char *actual_val = (char*)malloc(slab_list_[slab_id]);
+        pkey.phykey = pkey.phykey - pack_id;
         phy_val pval(actual_val, slab_list_[slab_id]);
         //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
         ssds_[dev_idx].kv_get(&pkey, &pval);
 
         kvr_value new_val;
-        unpack_value(pval.c_val, NULL, &new_val);
+        new_unpack_value(pack_size, pack_id, pval.c_val, NULL, &new_val);
 
         value->length = new_val.length;
         value->val = (char*)malloc(new_val.length);

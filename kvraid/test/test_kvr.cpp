@@ -107,7 +107,7 @@ void load(KVR *kvr, int num, bool seq, int tid) {
         vals[i].length = OBJ_LEN;
 
         kvr->kvr_insert(&keys[i], &vals[i]);
-        //printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+        printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
     }
     delete [] keys;
     delete [] vals;
@@ -239,8 +239,8 @@ int main() {
     // printf("finish iteraotr test\n\n");
 
     for (int i = 0; i< thread_cnt; i++) {
-        //th_get[i] = new std::thread(erased_get, kvr, 100 , i);
-        th_get[i] = new std::thread(get, kvr, 100 , i);
+        th_get[i] = new std::thread(erased_get, kvr, 100 , i);
+        //th_get[i] = new std::thread(get, kvr, 100 , i);
     }
 
     for (int i = 0; i< thread_cnt; i++) {
