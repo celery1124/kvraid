@@ -159,6 +159,7 @@ typedef struct {
     int r;
     char **data_buf;
     char **code_buf;
+    bool free_buf;
     SlabQ *q;
 } bulk_io_context;
 
