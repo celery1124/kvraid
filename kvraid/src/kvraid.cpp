@@ -200,7 +200,9 @@ static void on_bulk_write_complete(void *arg) {
     }
 
     // free memory
-    for (int i = 0; i < bulk_io_ctx->code_num; i++) free(bulk_io_ctx->code_buf[i]);
+    for (int i = 0; i < bulk_io_ctx->k; i++) free(bulk_io_ctx->data_buf[i]);
+    for (int i = 0; i < bulk_io_ctx->r; i++) free(bulk_io_ctx->code_buf[i]);
+    free(bulk_io_ctx->data_buf);
     free(bulk_io_ctx->code_buf);
     free(bulk_io_ctx->keys);
     free(bulk_io_ctx->vals);
@@ -244,9 +246,17 @@ int SlabQ::get_id() {return sid_;}
 void SlabQ::processQ(int id) {
     while (true) {
         
-        // clean buffer
-        //printf("======clean buffer======\n");
-        clear_data_buf();
+        // create EC buffer for new group
+        //printf("======create buffer======\n");
+        char **data = new char*[k_];
+        char **code = new char*[r_];
+        int buffer_size = sizeof(char) * slab_size_;
+        for (int i = 0; i<k_; i++) {
+            data[i] = (char *) malloc(buffer_size);
+        }
+        for (int i = 0; i<r_; i++) {
+            code[i] = (char *) malloc(buffer_size);
+        }
         uint64_t group_id = get_new_group_id();
         int dev_idx_start = group_id%(k_+r_);
         int dev_idx;
@@ -273,21 +283,14 @@ void SlabQ::processQ(int id) {
 
             // write to buffer and apply ec
             for (int i = 0; i < count; i++) {
-                memcpy(data_[i + total_count], kvr_ctxs[i]->value->val, kvr_ctxs[i]->value->length);
+                memcpy(data[i + total_count], kvr_ctxs[i]->value->val, kvr_ctxs[i]->value->length);
             } 
-            ec_->encode(data_, code_, slab_size_);
-
-            // allocate code buffer
-            char **code_buf = (char **)malloc(sizeof(char *)*r_);
-            for (int i = 0; i < r_; i++) {
-                code_buf[i] = (char *)malloc(slab_size_);
-                memcpy(code_buf[i], code_[i], slab_size_);
-            }
+            ec_->encode(data, code, slab_size_);
 
             // prepare bulk_io_context
             uint64_t unique_id = group_id*k_+total_count;
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {unique_id, count + r_, count, kvr_ctxs, pkeys, pvals, r_, code_buf, this};
+            {unique_id, count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
 
             // write to index map
             dev_idx = (dev_idx_start+total_count) % (k_+r_);
@@ -343,7 +346,7 @@ void SlabQ::processQ(int id) {
             for (int j = 0; j < r_; j++) {
                 int i = j+count;
                 (void) new (&pkeys[i]) phy_key(sid_, group_id*k_);
-                (void) new (&pvals[i]) phy_val(code_buf[j], slab_size_);
+                (void) new (&pvals[i]) phy_val(code[j], slab_size_);
 
                 parent_->ssds_[dev_idx].kv_astore(&pkeys[i], &pvals[i], on_bulk_write_complete, (void*)bulk_io_ctx);
                 //printf("insert [ssd %d] group_id %d pkey %lu\n",dev_idx, group_id, pkeys[i].get_seq());
@@ -766,8 +769,8 @@ bool KVRaid::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         // decode buffers
         char **data = (char **)malloc(k_*sizeof(char *));
         char **codes = (char **)malloc(r_*sizeof(char *));
-        for (int i = 0; i < k_; i++) data[i] = (char *)malloc(slab_size_);
-        for (int i = 0; i < r_; i++) codes[i] = (char *)malloc(slab_size_);
+        for (int i = 0; i < k_; i++) data[i] = (char *)calloc(slab_size_, 1);
+        for (int i = 0; i < r_; i++) codes[i] = (char *)calloc(slab_size_, 1);
 
         // read survival data and codes
         phy_key *pkeys_c = (phy_key *)malloc(sizeof(phy_key)*(k_+r_-1));

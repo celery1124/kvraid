@@ -159,7 +159,9 @@ typedef struct {
     kvr_context **kvr_ctxs;
     phy_key *keys;
     phy_val *vals;
-    int code_num;
+    int k;
+    int r;
+    char **data_buf;
     char **code_buf;
     SlabQ *q;
 } bulk_io_context;
@@ -179,12 +181,8 @@ private:
     int k_;
     int r_;
     int pack_size_; // # of KV (in slab_size) for packing
-    // ec buffer
+    // ec engine
     EC *ec_;
-    char **data_;
-    char **code_;
-    int *pack_id_;
-    int *pack_offset_;
     // seq generator
     uint64_t seq_; // monotonous for recovery
     std::mutex seq_mutex_;
@@ -214,13 +212,6 @@ private:
     std::unordered_map<int,int> finish_;
     std::mutex finish_mtx_;
 
-    void clear_data_buf() {
-        for (int i = 0; i<k_; i++) {
-            memset(data_[i], 0, slab_size_);
-            pack_id_[i] = 0;
-            pack_offset_[i] = 0;
-        }
-    }
 public:
     KVRaidPack *parent_;
     // Delete queue
@@ -235,20 +226,7 @@ public:
         // calculate pack size (suppose slab size to 2^N)
         pack_size_ = IDEAL_KV_PACK_SIZE / slab_size_ > MAX_PACK_SIZE ? MAX_PACK_SIZE : IDEAL_KV_PACK_SIZE / slab_size_;
         delete_q_.pack_size_ = pack_size_;
-        delete_q_.group_size_ = k_ * pack_size_;
-        // alloacte ec buffer
-        data_ = new char*[k_];
-        code_ = new char*[r_];
-        pack_id_ = new int[k_];
-        pack_offset_ = new int[k_];
-        int buffer_size = sizeof(char) * slab_size_ * pack_size_;
-        for (int i = 0; i<k_; i++) {
-            data_[i] = (char *) malloc(buffer_size);
-            
-        }
-        for (int i = 0; i<r_; i++) {
-            code_[i] = (char *) malloc(buffer_size);
-        }
+        delete_q_.group_size_ = k_ * pack_size_;        
 
         // thread processQ thread
         thrd_ = new std::thread*[num_pq];

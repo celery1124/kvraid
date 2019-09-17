@@ -5,7 +5,7 @@
 #include <chrono>
 #include "kvraid_pack.h"
 
-#define RECLAIMS_BULKS 2 * k_
+#define RECLAIMS_BULKS 4 * k_
 #define MAX_TRIM_NUM 512
 #define TRIM_GUARD_NUM 2048
 
@@ -221,7 +221,9 @@ static void on_bulk_write_complete(void *arg) {
     }
 
     // free memory
-    for (int i = 0; i < bulk_io_ctx->code_num; i++) free(bulk_io_ctx->code_buf[i]);
+    for (int i = 0; i < bulk_io_ctx->k; i++) free(bulk_io_ctx->data_buf[i]);
+    for (int i = 0; i < bulk_io_ctx->r; i++) free(bulk_io_ctx->code_buf[i]);
+    free(bulk_io_ctx->data_buf);
     free(bulk_io_ctx->code_buf);
     free(bulk_io_ctx->keys);
     free(bulk_io_ctx->vals);
@@ -263,11 +265,23 @@ static int dequeue_bulk_timed(moodycamel::BlockingConcurrentQueue<T*> &q,
 int SlabQ::get_id() {return sid_;}
 
 void SlabQ::processQ(int id) {
+    int *pack_id = new int[k_];
+    int *pack_offset = new int[k_];
     while (true) {
         
-        // clean buffer
-        //printf("======clean buffer======\n");
-        clear_data_buf();
+        // create EC buffer for new group
+        //printf("======create buffer======\n");
+        char **data = new char*[k_];
+        char **code = new char*[r_];
+        int buffer_size = slab_size_ * pack_size_;
+        for (int i = 0; i<k_; i++) {
+            data[i] = (char *) calloc(buffer_size, sizeof(char));
+            pack_id[i] = 0;
+            pack_offset[i] = 0;
+        }
+        for (int i = 0; i<r_; i++) {
+            code[i] = (char *) malloc(buffer_size);
+        }
         uint64_t group_id = get_new_group_id();
         int dev_idx_start = group_id%(k_+r_);
         int dev_idx;
@@ -294,12 +308,12 @@ void SlabQ::processQ(int id) {
             int pack_count = 0;
             int chunk_start = -1, chunk_end = -1;
             for (int i = 0; i < k_; i++) {
-                if (pack_id_[i] == pack_size_) continue;
-                for (int j = pack_id_[i]; j < pack_size_; j++) {
+                if (pack_id[i] == pack_size_) continue;
+                for (int j = pack_id[i]; j < pack_size_; j++) {
                     if (chunk_start == -1) chunk_start = i;
-                    memcpy(data_[i]+pack_offset_[i], kvr_ctxs[pack_count]->value->val, kvr_ctxs[pack_count]->value->length);
-                    pack_id_[i]++;
-                    pack_offset_[i] += kvr_ctxs[pack_count]->value->length;
+                    memcpy(data[i]+pack_offset[i], kvr_ctxs[pack_count]->value->val, kvr_ctxs[pack_count]->value->length);
+                    pack_id[i]++;
+                    pack_offset[i] += kvr_ctxs[pack_count]->value->length;
                     pack_count++;
 
                     if (pack_count == count) {
@@ -309,7 +323,7 @@ void SlabQ::processQ(int id) {
                 }
                 if (chunk_end != -1) break;
             }
-            ec_->encode(data_, code_, slab_size_*pack_size_);
+            ec_->encode(data, code, slab_size_*pack_size_);
 
 
             // allocate pkey, pval
@@ -317,17 +331,10 @@ void SlabQ::processQ(int id) {
             phy_key *pkeys = (phy_key *)malloc(sizeof(phy_key)*(io_count+r_));
             phy_val *pvals = (phy_val *)malloc(sizeof(phy_val)*(io_count+r_));
 
-            // allocate code buffer
-            char **code_buf = (char **)malloc(sizeof(char *)*r_);
-            for (int i = 0; i < r_; i++) {
-                code_buf[i] = (char *)malloc(slab_size_*pack_size_);
-                memcpy(code_buf[i], code_[i], slab_size_*pack_size_);
-            }
-
             // prepare bulk_io_context
             uint64_t unique_id = group_id*k_*pack_size_+total_count;
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {unique_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, r_, code_buf, this};
+            {unique_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
 
             // write to index map
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);
@@ -335,7 +342,7 @@ void SlabQ::processQ(int id) {
                 (void) new (&pkeys[i]) phy_key(sid_, group_id*k_*pack_size_ + (chunk_start + i)*pack_size_);
                 
                 // write data
-                (void) new (&pvals[i]) phy_val(data_[chunk_start+i], pack_offset_[chunk_start+i]);
+                (void) new (&pvals[i]) phy_val(data[chunk_start+i], pack_offset[chunk_start+i]);
                 parent_->ssds_[dev_idx].kv_astore(&pkeys[i], &pvals[i], on_bulk_write_complete, (void*)bulk_io_ctx);
                 //printf("insert [ssd %d] skey %s pkey %lu\n",dev_idx, skey.c_str(), pkeys[i].get_seq());
                 dev_idx = (dev_idx+1)%(k_+r_);
@@ -386,7 +393,7 @@ void SlabQ::processQ(int id) {
             for (int j = 0; j < r_; j++) {
                 int i = j+io_count;
                 (void) new (&pkeys[i]) phy_key(sid_, group_id*k_*pack_size_);
-                (void) new (&pvals[i]) phy_val(code_buf[j], slab_size_*pack_size_);
+                (void) new (&pvals[i]) phy_val(code[j], slab_size_*pack_size_);
 
                 parent_->ssds_[dev_idx].kv_astore(&pkeys[i], &pvals[i], on_bulk_write_complete, (void*)bulk_io_ctx);
                 //printf("insert [ssd %d] group_id %d pkey %lu\n",dev_idx, group_id, pkeys[i].get_seq());
@@ -746,13 +753,20 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     phy_val pval(actual_val, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     pkey.phykey = pkey.phykey - pack_id;
-    ssds_[dev_idx].kv_get(&pkey, &pval);
+    exist = ssds_[dev_idx].kv_get(&pkey, &pval);
+    if (!exist) {
+        value->length = 0;
+        return false;
+    }
 
     //req_key_fl_.UnLock(skey, l);
 
     kvr_value new_val;
     //unpack_value(pval.c_val, NULL, &new_val);
     new_unpack_value(pack_size, pack_id, pval.c_val, NULL, &new_val);
+    if (new_val.length == 0) {
+        int test = 1;
+    }
 
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);
@@ -807,14 +821,14 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
     if (dev_idx == erased) {
         int group_id = seq/k_/pack_size;
         int group_offset = seq%(k_*pack_size);
-        int slab_size_ = slab_list_[slab_id];
+        int code_size_ = slab_list_[slab_id] * pack_size;
         int dev_index = group_id % (k_+r_);
 
         // decode buffers
         char **data = (char **)malloc(k_*sizeof(char *));
         char **codes = (char **)malloc(r_*sizeof(char *));
-        for (int i = 0; i < k_; i++) data[i] = (char *)malloc(slab_size_);
-        for (int i = 0; i < r_; i++) codes[i] = (char *)malloc(slab_size_);
+        for (int i = 0; i < k_; i++) data[i] = (char *)calloc(code_size_, 1);
+        for (int i = 0; i < r_; i++) codes[i] = (char *)calloc(code_size_, 1);
 
         // read survival data and codes
         phy_key *pkeys_c = (phy_key *)malloc(sizeof(phy_key)*(k_+r_-1));
@@ -826,11 +840,11 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
             if (dev_index != dev_idx) {
                 if (i < k_) {
                     (void) new (&pkeys_c[j]) phy_key(slab_id, (group_id*k_+i)*pack_size);
-                    (void) new (&pvals_c[j]) phy_val(data[i], slab_size_);
+                    (void) new (&pvals_c[j]) phy_val(data[i], code_size_);
                 }
                 else {
                     (void) new (&pkeys_c[j]) phy_key(slab_id, group_id*k_*pack_size);
-                    (void) new (&pvals_c[j]) phy_val(codes[i-k_], slab_size_);
+                    (void) new (&pvals_c[j]) phy_val(codes[i-k_], code_size_);
                 }
                 ssds_[dev_index].kv_aget(&pkeys_c[j], &pvals_c[j], on_io_complete, (void *)&mons_c[j]);
                 j++;
@@ -843,7 +857,7 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         }
 
         // EC decode
-        ec_.single_failure_decode(logic_erased, data, codes, slab_size_);
+        ec_.single_failure_decode(logic_erased, data, codes, code_size_);
         kvr_value new_val;
         new_unpack_value(pack_size, pack_id, data[logic_erased], NULL, &new_val);
         value->length = new_val.length;
@@ -858,9 +872,9 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         free(pvals_c);
     }
     else {
-        char *actual_val = (char*)malloc(slab_list_[slab_id]);
+        char *actual_val = (char*)malloc(slab_list_[slab_id]*slabs_[slab_id].pack_size_);
         pkey.phykey = pkey.phykey - pack_id;
-        phy_val pval(actual_val, slab_list_[slab_id]);
+        phy_val pval(actual_val, slab_list_[slab_id]*slabs_[slab_id].pack_size_);
         //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
         ssds_[dev_idx].kv_get(&pkey, &pval);
 

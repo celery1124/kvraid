@@ -155,7 +155,9 @@ typedef struct {
     kvr_context **kvr_ctxs;
     phy_key *keys;
     phy_val *vals;
-    int code_num;
+    int k;
+    int r;
+    char **data_buf;
     char **code_buf;
     SlabQ *q;
 } bulk_io_context;
@@ -173,10 +175,8 @@ private:
     int slab_size_;
     int k_;
     int r_;
-    // ec buffer
+    // ec engine
     EC *ec_;
-    char **data_;
-    char **code_;
     // seq generator
     uint64_t seq_; // monotonous for recovery
     std::mutex seq_mutex_;
@@ -206,11 +206,6 @@ private:
     std::unordered_map<int,int> finish_;
     std::mutex finish_mtx_;
 
-    void clear_data_buf() {
-        for (int i = 0; i<k_; i++) {
-            memset(data_[i], 0, slab_size_);
-        }
-    }
 public:
     KVRaid *parent_;
     // Delete queue
@@ -222,17 +217,7 @@ public:
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), 
     ec_(ec), seq_(seq), num_pq_(num_pq), delete_q_(this, num_d, num_d+num_r),
     gc_ena_(GC_ENA) {
-        // alloacte ec buffer
-        data_ = new char*[k_];
-        code_ = new char*[r_];
-        int buffer_size = sizeof(char) * slab_size_;
-        for (int i = 0; i<k_; i++) {
-            data_[i] = (char *) malloc(buffer_size);
-        }
-        for (int i = 0; i<r_; i++) {
-            code_[i] = (char *) malloc(buffer_size);
-        }
-
+        
         // thread processQ thread
         thrd_ = new std::thread*[num_pq];
         thread_m_ = new std::mutex[num_pq];
