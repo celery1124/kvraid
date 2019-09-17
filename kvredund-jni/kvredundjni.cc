@@ -85,6 +85,10 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         kvr = NewKVMirror (k, r, kv_conts);
         printf("[KVMirror] {%d, %d} initiated]\n", k, r);
         break;
+    case 3 :
+        kvr = NewKVRaidPack  (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), gc_ena==1);
+        printf("[KVRaidPack] {%d, %d} initiated]\n", k, r);
+        break;
     default :
         return false;
     }
