@@ -223,8 +223,8 @@ static void on_bulk_write_complete(void *arg) {
     // free memory
     for (int i = 0; i < bulk_io_ctx->k; i++) free(bulk_io_ctx->data_buf[i]);
     for (int i = 0; i < bulk_io_ctx->r; i++) free(bulk_io_ctx->code_buf[i]);
-    free(bulk_io_ctx->data_buf);
-    free(bulk_io_ctx->code_buf);
+    delete [] (bulk_io_ctx->data_buf);
+    delete [] (bulk_io_ctx->code_buf);
     free(bulk_io_ctx->keys);
     free(bulk_io_ctx->vals);
     delete [] (bulk_io_ctx->kvr_ctxs);
@@ -291,7 +291,11 @@ void SlabQ::processQ(int id) {
             // check thread shutdown
             {
                 std::unique_lock<std::mutex> lck (thread_m_[id]);
-                if (shutdown_[id] == true) return;
+                if (shutdown_[id] == true) {
+                    delete [] pack_id; 
+                    delete [] pack_offset; 
+                    return;
+                }
             }
             int count;
             kvr_context **kvr_ctxs = new kvr_context*[bulk_count]; // TODO might leak when shutdown

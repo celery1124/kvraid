@@ -248,12 +248,6 @@ public:
         delete [] thrd_;
         delete [] shutdown_;
         delete [] thread_m_;
-        for (int i = 0; i < k_; i++) free(data_[i]);
-        for (int i = 0; i < r_; i++) free(code_[i]);
-        delete [] data_;
-        delete [] code_;
-        delete [] pack_id_;
-        delete [] pack_offset_;
     }
     void processQ(int id);
     void get_all_delete_ids(std::vector<uint64_t>& groups);

@@ -217,7 +217,7 @@ public:
     parent_(p), sid_(id), slab_size_(size), k_(num_d), r_(num_r), 
     ec_(ec), seq_(seq), num_pq_(num_pq), delete_q_(this, num_d, num_d+num_r),
     gc_ena_(GC_ENA) {
-        
+
         // thread processQ thread
         thrd_ = new std::thread*[num_pq];
         thread_m_ = new std::mutex[num_pq];
@@ -238,10 +238,6 @@ public:
         delete [] thrd_;
         delete [] shutdown_;
         delete [] thread_m_;
-        for (int i = 0; i < k_; i++) free(data_[i]);
-        for (int i = 0; i < r_; i++) free(code_[i]);
-        delete [] data_;
-        delete [] code_;
     }
     void processQ(int id);
     void get_all_delete_ids(std::vector<uint64_t>& groups);
