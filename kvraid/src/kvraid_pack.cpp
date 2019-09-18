@@ -755,8 +755,8 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     int pack_id = seq%pack_size;
     int dev_idx = ((seq/k_/pack_size % (k_+r_)) + (seq%(k_*pack_size)/pack_size)) % (k_+r_);
 
-    char *actual_val = (char*)malloc(slab_list_[slab_id]);
-    phy_val pval(actual_val, slab_list_[slab_id]);
+    char *actual_val = (char*)malloc(slab_list_[slab_id]*slabs_[slab_id].pack_size_);
+    phy_val pval(actual_val, slab_list_[slab_id]*slabs_[slab_id].pack_size_);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     pkey.phykey = pkey.phykey - pack_id;
     exist = ssds_[dev_idx].kv_get(&pkey, &pval);
