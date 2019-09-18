@@ -318,6 +318,7 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
     // lookup mapping table
     phy_key pkey;
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
 
     key_map_->lookup(&skey, &pkey);
 
@@ -339,11 +340,13 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
         new_slab->slab_insert(key, &packed_value);
     }
 
+    req_key_fl_.UnLock(skey, l);
     free(val_buf);
     return true;
 }
 bool KVEC::kvr_delete(kvr_key *key) {
     std::string skey = std::string(key->key, key->length);
+    LockEntry *l = req_key_fl_.Lock(skey);
 
     phy_key pkey;
     // update log->phy translation table
@@ -360,12 +363,14 @@ bool KVEC::kvr_delete(kvr_key *key) {
     slab->slab_delete(key, &pkey);
     slab->reclaim_index(pkey.get_seq());
 
+    req_key_fl_.UnLock(skey, l);
     return true;
 }
 
 bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
-    
+    LockEntry *l = req_key_fl_.Lock(skey);
+
     phy_key pkey;
     // lookup log->phy translation table
     bool exist = key_map_->lookup(&skey, &pkey);
@@ -387,6 +392,7 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
         value->length = 0;
         return false;
     }
+    req_key_fl_.UnLock(skey, l);
 
     value->val = (char*)malloc(slab_list_[slab_id]);
     unpack_value(get_val_buf, value);
