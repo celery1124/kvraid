@@ -2,6 +2,7 @@
 
 numofexp=$1
 
+HOME=`pwd`
 result_dir=$HOME/$2
 
 mkdir -p $result_dir
