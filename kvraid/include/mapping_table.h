@@ -13,7 +13,8 @@
 
 typedef enum {
     Mem,
-    Storage
+    Storage,
+    Cuckoo
 } MetaType;
 
 class MapIterator {
@@ -46,5 +47,6 @@ public:
 
 Map* NewMemMap();
 Map* NewStorageMap(KVS_CONT *conts, int k, int r);
+Map* NewCuckooMap();
 
 #endif

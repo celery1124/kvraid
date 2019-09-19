@@ -555,3 +555,7 @@ Map* NewMemMap() {
 Map* NewStorageMap(KVS_CONT *conts, int k, int r) {
     return new StorageMap(conts, k, r);
 }
+
+Map* NewCuckooMap() {
+    return new CuckooMap;
+}

@@ -384,6 +384,9 @@ public:
             case Storage:
                 key_map_ = NewStorageMap(conts, k_, r_);
                 break;
+            case Cuckoo:
+                key_map_ = NewCuckooMap();
+                break;
             default:
                 printf("wrong MetaType \n");
                 exit(-1);
