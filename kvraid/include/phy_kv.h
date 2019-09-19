@@ -61,7 +61,7 @@ public:
 		return (phykey & 0x00FFFFFFFFFFFFFF);
 	}
 
-    uint64_t get_phykey() {return phykey;}
+    const uint64_t get_phykey() const {return phykey;}
 
     const char* c_str() {return (char*)&phykey;}
 
