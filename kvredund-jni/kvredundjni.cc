@@ -91,7 +91,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         break;
     case 9 :
         kvr = NewKVDummy (k, kv_conts);
-        printf("[KVMirror] {%d, %d} initiated]\n", k, r);
+        printf("[KVDummy] {%d, %d} initiated]\n", k, r);
         break;
     default :
         return false;
