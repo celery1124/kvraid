@@ -493,7 +493,7 @@ void on_reclaim_get_complete(void *args) {
 void SlabQ::DoReclaim() {
     std::vector<uint64_t> actives;
     std::vector<uint64_t> groups;
-    int slab_size = slab_size_;
+    int buffer_size = slab_size_ * pack_size_;
 
     // scan delete q
     delete_q_.scan(parent_->min_num_invalids_, actives, groups);
@@ -505,8 +505,8 @@ void SlabQ::DoReclaim() {
     for (auto it = actives.begin(); it != actives.end(); ++it) {
         int dev_idx = get_dev_idx(*it);
         phy_key *pkey = new phy_key(sid_, *it);
-        char *c_val = (char*)malloc(slab_size);
-        phy_val *pval = new phy_val(c_val, slab_size);
+        char *c_val = (char*)malloc(buffer_size);
+        phy_val *pval = new phy_val(c_val, buffer_size);
         reclaim_get_context *aget_ctx = new reclaim_get_context {num_ios, pkey, pval, &kvQ};
         parent_->ssds_[dev_idx].kv_aget(pkey, pval, on_reclaim_get_complete, aget_ctx);
     }
