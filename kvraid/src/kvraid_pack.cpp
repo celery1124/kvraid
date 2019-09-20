@@ -10,7 +10,7 @@
 #define TRIM_GUARD_NUM 2048
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
-#define GC_DEV_UTIL_THRES 0.5
+#define GC_DEV_UTIL_THRES 0.55
 #define GC_DELETE_Q_THRES 0
 
 #define DEQ_TIMEOUT 500 // us
@@ -344,7 +344,7 @@ void SlabQ::processQ(int id) {
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
             {unique_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, total_count+count==bulk_count, this};
 
-            // write to index map
+            // write data
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);
             for (int i = 0; i < io_count; i++) {
                 (void) new (&pkeys[i]) phy_key(sid_, group_id*k_*pack_size_ + (chunk_start + i)*pack_size_);

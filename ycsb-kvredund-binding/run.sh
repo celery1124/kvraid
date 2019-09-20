@@ -58,9 +58,9 @@ do
 						nvme format /dev/nvme4n1
 						nvme format /dev/nvme5n1
 						
-						sleep 10
+						sleep 60
 						# ycsb load
-						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms8g -Xmx8g" 2> err.log 
+						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms16g -Xmx16g" 2> err.log 
 							
 						echo load >> $result_txt
 						printf "load_tp: " >> $result_txt
@@ -88,7 +88,7 @@ do
 
 						# ycsb run 
 
-						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms8g -Xmx8g" 2> err.log  
+						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms16g -Xmx16g" 2> err.log  
 						echo "run" >> $result_txt
 						printf "run_tp: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>5)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
@@ -156,7 +156,7 @@ do
 			fi
 		done
 	done
-	
+	sleep 120
 done
 
 rm *.log

@@ -10,7 +10,7 @@
 #define TRIM_GUARD_NUM 2048
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
-#define GC_DEV_UTIL_THRES 0.5
+#define GC_DEV_UTIL_THRES 0.55
 #define GC_DELETE_Q_THRES 0
 
 #define DEQ_TIMEOUT 500 // us
@@ -294,7 +294,7 @@ void SlabQ::processQ(int id) {
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
             {unique_id, count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, total_count+count == k_, this};
 
-            // write to index map
+            // write data
             dev_idx = (dev_idx_start+total_count) % (k_+r_);
             for (int i = 0; i < count; i++){
                 std::string skey = std::string(kvr_ctxs[i]->key->key, kvr_ctxs[i]->key->length);

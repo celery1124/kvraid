@@ -24,8 +24,8 @@
 #include "kv_device.h"
 #include "mapping_table.h"
 
-#define MAX_ENTRIES_PER_GC 1024
-#define MAX_SCAN_LEN_PER_GC 16384
+#define MAX_ENTRIES_PER_GC 2048
+#define MAX_SCAN_LEN_PER_GC 32768
 
 #define IDEAL_KV_PACK_SIZE 8192
 #define MAX_PACK_SIZE 2
