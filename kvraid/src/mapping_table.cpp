@@ -74,7 +74,7 @@ public:
         }
     };
     MemMap() {
-        key_map_.reserve(100e6); // reserve 100M buckets (avoid rehashing)
+        key_map_.reserve(200e6); // reserve 200M buckets (avoid rehashing)
         std::ifstream f("mapping_table.log",std::ifstream::in|std::ios::binary);
         if (f) {
             deserialize("mapping_table.log");
@@ -271,7 +271,7 @@ public:
         }
     };
     CuckooMap() {
-        key_map_.reserve(100e6); // reserve 100M buckets (avoid rehashing)
+        key_map_.reserve(200e6); // reserve 200M buckets (avoid rehashing)
         std::ifstream f("mapping_table.log",std::ifstream::in|std::ios::binary);
         if (f) {
             deserialize("mapping_table.log");
