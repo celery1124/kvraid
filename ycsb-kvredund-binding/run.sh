@@ -22,6 +22,10 @@ recordcnt='50000000'
 sed -i 's/recordcount=.*/recordcount='$recordcnt'/' workloads/*_uniform
 opcnt='50000000'
 sed -i 's/operationcount=.*/operationcount='$opcnt'/' workloads/*_uniform
+fieldlen='8000'
+sed -i 's/fieldlength=.*/fieldlength='$fieldlen'/' workloads/*_uniform
+minfieldlen='200'
+sed -i 's/minfieldlength=.*/minfieldlength='$minfieldlen'/' workloads/*_uniform
 
 for exp_id in $( seq 1 $numofexp )
 do
