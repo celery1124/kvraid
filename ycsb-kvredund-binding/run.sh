@@ -79,7 +79,7 @@ do
 						cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 						rm -rf kv_device.log
-						sleep 10
+						sleep 30
 
 						# ycsb run 
 
@@ -136,7 +136,7 @@ do
 
 						echo "" >> $result_txt
 						rm -rf *.log
-						sleep 10
+						sleep 30
 						
 					done
 				done
