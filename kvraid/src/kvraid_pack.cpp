@@ -141,7 +141,7 @@ bool DeleteQ::erase(uint64_t index) {
     std::unique_lock<std::mutex> lock(gl_mutex_);
     auto it = group_list_.find(group_id);
     if (it == group_list_.end()) {
-        printf("KVR_REPLACE cannot find updated relcaim group_id in delete q\n");
+        //printf("KVR_REPLACE cannot find updated relcaim group_id in delete q\n");
         return false;
     }
     for (auto i = it->second.begin(); i!=it->second.end(); ++i) {
