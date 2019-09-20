@@ -55,7 +55,7 @@ do
 						
 						sleep 10
 						# ycsb load
-						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 2> err.log 
+						./bin/ycsb load kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms8g -Xmx8g" 2> err.log 
 							
 						echo load >> $result_txt
 						printf "load_tp: " >> $result_txt
@@ -83,7 +83,7 @@ do
 
 						# ycsb run 
 
-						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 2> err.log  
+						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms8g -Xmx8g" 2> err.log  
 						echo "run" >> $result_txt
 						printf "run_tp: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>3)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
