@@ -13,11 +13,12 @@ threads="64"
 #tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
 #tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
 tests="wr91_uniform wr73_uniform wr55_uniform wr37_uniform wr19_uniform"
-kvredund_type="1 2 0" # 0-KVRaid 1-KVEC 2-KVMirror
-meta_type="0 1" # 0-Mem 1-Storage (leveldb)
-gc_ena="0 1"
+kvredund_type="1 2 0 3" # 0-KVRaid 1-KVEC 2-KVMirror 3-KVRaidPack
+meta_type="1 2" # 0-Mem 1-Storage (leveldb) 2-CockoHashMap
+gc_ena="1"
 
-
+dev_cap='85899345920'
+sed -i 's/\"dev_cap\":.*/\"dev_cap\":'${dev_cap}',/' kvredund_config.json
 recordcnt='50000000'
 sed -i 's/recordcount=.*/recordcount='$recordcnt'/' workloads/*_uniform
 opcnt='50000000'
@@ -150,7 +151,7 @@ do
 				fi
 			done
 			# no meta_type for KVMirror
-			if [[ "$kv_type" == "2" ]]; then
+			if [ "$kv_type" == "2" ] || [ "$kv_type" == "1" ] || [ "$kv_type" == "0" ]; then
 				break
 			fi
 		done
