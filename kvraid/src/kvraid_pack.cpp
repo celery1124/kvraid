@@ -396,6 +396,7 @@ void SlabQ::processQ(int id) {
                     exit(-1);
                 }
             }
+            parent_->key_map_->commit();
             // write code
             dev_idx = (dev_idx_start+k_) % (k_+r_);
             for (int j = 0; j < r_; j++) {
@@ -564,7 +565,7 @@ void SlabQ::DoReclaim() {
         delete kvr_ctx_vec[i]->kv_ctx;
         delete kvr_ctx_vec[i];
     }
-
+    parent_->key_map_->commit();
     // release phy key (for trim)
     add_delete_ids(groups);    
 }
@@ -727,6 +728,7 @@ bool KVRaidPack::kvr_delete(kvr_key *key) {
         exit(-1);
     }
     key_map_->erase(&skey);
+    key_map_->commit();
 
     // insert to delete queue
     int slab_id = pkey.get_slab_id();

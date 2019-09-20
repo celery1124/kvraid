@@ -406,6 +406,7 @@ private:
     leveldb::DB* db_;
     leveldb::Cache* cache_;
     leveldb::WriteOptions write_options_;
+    leveldb::WriteBatch batch_;
     leveldb::Options options;
 public:
     class StorageMapIterator : public MapIterator {
@@ -452,7 +453,7 @@ public:
         }
     };
     StorageMap(KVS_CONT *conts, int k, int r) {
-        cache_ = leveldb::NewLRUCache(1073741824);
+        cache_ = leveldb::NewLRUCache(2147483648);
         //cache_ = NULL;
         options.create_if_missing = true;
         options.block_cache = cache_;
@@ -494,10 +495,8 @@ public:
         exist = true;
         rd_val->decode(&value);
         // update
-        leveldb::WriteBatch batch;
         std::string val_s = wr_val->ToString();
-        batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
-        db_->Write(write_options_, &batch);
+        batch_.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
     
         return exist;
     }
@@ -511,10 +510,8 @@ public:
         match = (*rd_val == *old_val);
         if (match) { // active KV not being updated
             // update
-            leveldb::WriteBatch batch;
             std::string val_s = new_val->ToString();
-            batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
-            db_->Write(write_options_, &batch);
+            batch_.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
         }
         else { // active KV got updated before REPLACE
             //printf("rare case when doing GC\n"); // TODO
@@ -523,24 +520,23 @@ public:
     }
 
     void insert(std::string *key, phy_key *val) {
-        leveldb::WriteBatch batch;
         std::string val_s = val->ToString();
-        batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
-        db_->Write(write_options_, &batch);
+        batch_.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
     }
 
     void update(std::string *key, phy_key *val) {
         // already know key exist
-        leveldb::WriteBatch batch;
         std::string val_s = val->ToString();
-        batch.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
-        db_->Write(write_options_, &batch);
+        batch_.Put(leveldb::Slice(*key), leveldb::Slice(val_s));
     }
 
     void erase(std::string *key) {
-        leveldb::WriteBatch batch;
-        batch.Delete(leveldb::Slice(*key));
-        db_->Write(write_options_, &batch);
+        batch_.Delete(leveldb::Slice(*key));
+    }
+
+    void commit() {
+        db_->Write(write_options_, &batch_);
+        batch_.Clear();
     }
 
     MapIterator* NewMapIterator() {

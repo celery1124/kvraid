@@ -42,6 +42,8 @@ public:
     virtual void update(std::string* key, phy_key* val) = 0;
     virtual void erase(std::string* key) = 0;
 
+    virtual void commit() {};
+
     virtual MapIterator* NewMapIterator() = 0;
 };
 
