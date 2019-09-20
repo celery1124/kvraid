@@ -2,13 +2,10 @@
 	"dev_mode":1,
 	"num_data_nodes":4,
 	"num_code_nodes":2,
-	"slab_list":[2048,4096,6144,8192],
+	"slab_list":[1024,2048,3072,4096],
 	"kvr_type":0,
 	"meta_type":0,
 	"gc_ena":0,
 	"dev_cap": 21474836480,
 	"batch_size":10 
 }
-
-
-
