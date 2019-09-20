@@ -180,9 +180,10 @@ static void unpack_value(char *src, kvr_key *key, kvr_value *val) {
     }
 }
 
-static void new_unpack_value(int pack_size, int pack_id, char *src, kvr_key *key, kvr_value *val) {
+static bool new_unpack_value(int pack_size, int pack_id, char *src, int size, kvr_key *key, kvr_value *val) {
     char *p = src;
     for (int i = 0; i < pack_size; i++) {
+        if (p-src >= size) return false;
         uint8_t key_len = *((uint8_t*)p);
         p += KEY_SIZE_BYTES;
         if (key != NULL) {
@@ -199,6 +200,7 @@ static void new_unpack_value(int pack_size, int pack_id, char *src, kvr_key *key
         p += val_len;
         if (i == pack_id) break;
     }
+    return true;
 }
 
 static void on_bulk_write_complete(void *arg) {
@@ -521,7 +523,7 @@ void SlabQ::DoReclaim() {
             mv_val->length = kvs[i]->pval->actual_len;
             mv_val->val = kvs[i]->pval->c_val;
             int pack_id = kvs[i]->pkey->get_seq() % pack_size_;
-            new_unpack_value(pack_size_, pack_id, kvs[i]->pval->c_val, mv_key, NULL);
+            new_unpack_value(pack_size_, pack_id, kvs[i]->pval->c_val, kvs[i]->pval->actual_len, mv_key, NULL);
             kvr_context* kvr_ctx = new kvr_context(KVR_REPLACE, mv_key, mv_val, kvs[i]);
             q.enqueue(kvr_ctx);
             kvr_ctx_vec.push_back(kvr_ctx);
@@ -769,11 +771,12 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
 
     kvr_value new_val;
     //unpack_value(pval.c_val, NULL, &new_val);
-    new_unpack_value(pack_size, pack_id, pval.c_val, NULL, &new_val);
-    if (new_val.length == 0) {
-        int test = 1;
+    exist = new_unpack_value(pack_size, pack_id, pval.c_val, pval.actual_len, NULL, &new_val);
+    if (!exist) {
+        value->length = 0;
+        return false;
     }
-
+    
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);
     memcpy(value->val, new_val.val, new_val.length);
@@ -865,7 +868,7 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         // EC decode
         ec_.single_failure_decode(logic_erased, data, codes, code_size_);
         kvr_value new_val;
-        new_unpack_value(pack_size, pack_id, data[logic_erased], NULL, &new_val);
+        new_unpack_value(pack_size, pack_id, data[logic_erased], code_size_, NULL, &new_val);
         value->length = new_val.length;
         value->val = (char*)malloc(new_val.length);
         memcpy(value->val, new_val.val, new_val.length);
@@ -885,7 +888,7 @@ bool KVRaidPack::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
         ssds_[dev_idx].kv_get(&pkey, &pval);
 
         kvr_value new_val;
-        new_unpack_value(pack_size, pack_id, pval.c_val, NULL, &new_val);
+        new_unpack_value(pack_size, pack_id, pval.c_val, pval.actual_len, NULL, &new_val);
 
         value->length = new_val.length;
         value->val = (char*)malloc(new_val.length);
