@@ -3,7 +3,7 @@
 #include <condition_variable>
 
 #define ITER_BUFF 32768
-#define INIT_GET_BUFF 1048576 // 1MB
+#define INIT_GET_BUFF 1310720 // 1024+256 KB
 
 namespace kvssd {
 
