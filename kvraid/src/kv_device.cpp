@@ -417,7 +417,7 @@ int64_t KV_DEVICE::get_real_capacity() {
 double KV_DEVICE::get_util() {
     int dev_util;
     kvs_get_device_utilization(cont_->dev, &dev_util);
-    return (double)dev_util/10000;
+    return (double)dev_util/1000000;
 }
 
 float KV_DEVICE::get_waf() {
