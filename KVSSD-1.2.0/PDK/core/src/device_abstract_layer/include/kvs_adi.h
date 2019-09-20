@@ -363,7 +363,7 @@ typedef struct {
 typedef struct {
   uint16_t namespace_count; ///< # of namespaces that the device currently maintains
   uint16_t queue_count;     ///< # of queues that the device currently maintains
-  uint16_t utilization;     ///< device space utilization in an integer form of 0(0.00%) to 10000(100.00%).
+  uint32_t utilization;     ///< device space utilization in an integer form of 0(0.00%) to 10000(100.00%).
   uint16_t waf;             ///< write amplification factor in an integer form of (xxx.xx)
   void *extended_info;      ///< vendor specific extended device information.  
 } kv_device_stat; 

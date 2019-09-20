@@ -609,8 +609,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
     const __u64 namespace_size = *((__u64 *)data);
     const __u64 namespace_utilization = *((__u64 *)&data[16]);
     capacity = namespace_size * BLOCK_SIZE;
-    bytesused = namespace_utilization * BLOCK_SIZE;
-    utilization = (1.0 * namespace_utilization) / namespace_size;
+    bytesused = namespace_utilization * BLOCK_SIZE * 1048576;
+    utilization = (1.0 * bytesused) / capacity;
     if (data)
         free(data);
     return 0;

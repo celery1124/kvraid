@@ -200,7 +200,7 @@ kv_result kv_get_device_stat(const kv_device_handle dev_hdl, kv_device_stat *dev
 
     dev_st->namespace_count = 1;
     dev_st->queue_count = 1;
-    dev_st->utilization = (uint16_t)(utilization * 10000);
+    dev_st->utilization = (uint16_t)(utilization * 1000000);
     dev_st->waf = 0;
     dev_st->extended_info = 0;
 
