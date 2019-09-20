@@ -59,10 +59,10 @@ do
 							
 						echo load >> $result_txt
 						printf "load_tp: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>3)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>5)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "load_lat: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/INSERT/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>3)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/INSERT/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>5)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "load_lat_99th: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/INSERT/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| sed 's/,/ /g' | awk 'BEGIN {max=0} {if($13>max) max=$13} END {print max}' >> $result_txt
@@ -86,34 +86,34 @@ do
 						./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms8g -Xmx8g" 2> err.log  
 						echo "run" >> $result_txt
 						printf "run_tp: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>3)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>5)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "insert_lat: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/INSERT/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>3)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/INSERT/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>5)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "load_lat_99th: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/INSERT/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| sed 's/,/ /g' | awk 'BEGIN {max=0} {if($13>max) max=$13} END {print max}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "update_lat: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/UPDATE/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>3)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/UPDATE/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>5)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "update_lat_99th: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/UPDATE/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| sed 's/,/ /g' | awk 'BEGIN {max=0} {if($13>max) max=$13} END {print max}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "read_lat: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/READ/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>3)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/READ/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>5)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "read_lat_99th: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/READ/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| sed 's/,/ /g' | awk 'BEGIN {max=0} {if($13>max) max=$13} END {print max}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "scan_lat: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/SCAN/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>3)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/SCAN/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>5)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "scan_lat_99th: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/SCAN/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| sed 's/,/ /g' | awk 'BEGIN {max=0} {if($13>max) max=$13} END {print max}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "rmw_lat: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/READMODIFYWRITE/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>3)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
+						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/READMODIFYWRITE/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| awk '{if(NR>5)SUM+=$9} END{print SUM/(NR-3)}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "rmw_lat_99th: " >> $result_txt
 						sed '/CLEANUP/d' err.log |grep "operations" |awk '{flag=0; j=0;for(i=1;i<NF;i++){if ($i~/READMODIFYWRITE/) {flag=1}; if(flag==1) {printf("%s ",$i); if(j++==8) break;}} printf("\n")}'|sed 's/=/ /g'| sed 's/,/ /g' | awk 'BEGIN {max=0} {if($13>max) max=$13} END {print max}' >> $result_txt
