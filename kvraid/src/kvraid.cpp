@@ -577,7 +577,7 @@ bool KVRaid::CheckGCTrigger() {
 }
 
 void KVRaid::bg_check() {
-    const auto timeWindow = std::chrono::milliseconds(500);
+    const auto timeWindow = std::chrono::milliseconds(1000);
 
     while(true)
     {

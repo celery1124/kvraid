@@ -631,7 +631,7 @@ bool KVRaidPack::CheckGCTrigger() {
 }
 
 void KVRaidPack::bg_check() {
-    const auto timeWindow = std::chrono::milliseconds(500);
+    const auto timeWindow = std::chrono::milliseconds(1000);
 
     while(true)
     {
@@ -776,7 +776,7 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
         value->length = 0;
         return false;
     }
-    
+
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);
     memcpy(value->val, new_val.val, new_val.length);
