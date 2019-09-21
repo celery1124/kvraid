@@ -90,7 +90,7 @@ do
 						retry_cnt=0
 						while :
 						do
-							./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms16g -Xmx16g" 1>out.log 2> err.log  
+							./bin/ycsb run kvredund -s -P workloads/$testfile -threads $numofthreads -p maxexecutiontime=1800 -jvm-args="-Xms16g -Xmx16g"  2> err.log  
 							
 							if test -n "$(find ./ -maxdepth 1 -name 'hs_err*' -print -quit)"
 							then
@@ -103,6 +103,18 @@ do
 								sleep 10
 								continue
 							fi
+							if [[ -f kv_device.log ]]; then
+								echo ycsb run success
+							else
+								let "retry_cnt=retry_cnt+1"
+								if [ $retry_cnt -ge 3 ]; then
+									break
+								fi
+								echo retry number $retry_cnt
+								sleep 10
+								continue
+							fi
+
 							echo "run" >> $result_txt
 							printf "run_tp: " >> $result_txt
 							sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{if(NR>5)SUM+=$1} END{print SUM/(NR-3)}' >> $result_txt

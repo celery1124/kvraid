@@ -480,6 +480,7 @@ void SlabQ::DoTrimAll() {
             dev_idx = (dev_idx+1)%(k_+r_);
         }
     }
+    sleep(10); // wait for all delete commit
 }
 
 void on_reclaim_get_complete(void *args) {
