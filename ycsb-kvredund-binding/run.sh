@@ -99,6 +99,8 @@ do
 								if [ $retry_cnt -ge 3 ]; then
 									break
 								fi
+								echo retry number $retry_cnt
+								sleep 10
 								continue
 							fi
 							echo "run" >> $result_txt
