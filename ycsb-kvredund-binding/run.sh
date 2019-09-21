@@ -107,6 +107,7 @@ do
 								echo ycsb run success
 							else
 								echo "un-normal terminate for ycsb run"
+								cat err.log
 								break
 							fi
 
