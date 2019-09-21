@@ -288,7 +288,11 @@ public:
     }
 
     bool readmodifywrite(std::string* key, phy_key* rd_val, phy_key* wr_val) {
-        bool exist = key_map_.find(*key, *rd_val);
+        int retry_cnt = 0;
+        bool exist ;
+        do {
+            exist = key_map_.find(*key, *rd_val);
+        } while (!exist && retry_cnt++ < 3);
         assert(exist);
         if (exist) {
             key_map_.update(*key, *wr_val);
@@ -299,7 +303,11 @@ public:
 
     bool readtestupdate(std::string* key, phy_key* rd_val, phy_key* old_val, phy_key* new_val) {
         bool match;
-        bool exist = key_map_.find(*key, *rd_val);
+        int retry_cnt = 0;
+        bool exist ;
+        do {
+            exist = key_map_.find(*key, *rd_val);
+        } while (!exist && retry_cnt++ < 3);
         assert(exist);
         match = (*rd_val == *old_val);
         if (match) { // active KV not being updated
