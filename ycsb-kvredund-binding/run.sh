@@ -84,7 +84,7 @@ do
 						cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 						rm -rf kv_device.log err.log
-						sleep 60
+						sleep 10
 
 						# ycsb run 
 						retry_cnt=0
@@ -186,7 +186,7 @@ do
 			fi
 		done
 	done
-	sleep 120
+	sleep 30
 done
 
 rm *.log
