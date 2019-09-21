@@ -106,13 +106,8 @@ do
 							if [[ -f kv_device.log ]]; then
 								echo ycsb run success
 							else
-								let "retry_cnt=retry_cnt+1"
-								if [ $retry_cnt -ge 3 ]; then
-									break
-								fi
-								echo retry number $retry_cnt
-								sleep 10
-								continue
+								echo "un-normal terminate for ycsb run"
+								break
 							fi
 
 							echo "run" >> $result_txt
@@ -186,7 +181,7 @@ do
 			fi
 		done
 	done
-	sleep 30
+	sleep 120
 done
 
 rm *.log
