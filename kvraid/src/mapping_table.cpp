@@ -291,8 +291,8 @@ public:
         int retry_cnt = 0;
         bool exist = key_map_.find(*key, *rd_val);
         while (!exist && retry_cnt < 3) {
+            usleep(100);retry_cnt++;
             exist = key_map_.find(*key, *rd_val);
-            usleep(20);retry_cnt++;
         } 
         assert(exist);
         if (exist) {
@@ -307,8 +307,8 @@ public:
         int retry_cnt = 0;
         bool exist = key_map_.find(*key, *rd_val);
         while (!exist && retry_cnt < 3) {
+            usleep(100);retry_cnt++;
             exist = key_map_.find(*key, *rd_val);
-            usleep(20);retry_cnt++;
         } 
         assert(exist);
         match = (*rd_val == *old_val);
