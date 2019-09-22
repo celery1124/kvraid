@@ -212,6 +212,25 @@ static bool new_unpack_value(int pack_size, int pack_id, char *src, int size, kv
     return true;
 }
 
+static bool new_unpack_replace_value(int pack_size, int pack_id, char *src, int size, kvr_key *key, kvr_value *val) {
+    char *p = src;
+    for (int i = 0; i < pack_size; i++) {
+        if (p-src >= size) return false;
+        val->val = p;
+        uint8_t key_len = *((uint8_t*)p);
+        p += KEY_SIZE_BYTES;
+        key->length = key_len;
+        key->key = p;
+        p += key_len;
+        uint32_t val_len = *((uint32_t *)(p));
+        p += VAL_SIZE_BYTES;
+        val->length = KEY_SIZE_BYTES + key_len + VAL_SIZE_BYTES + val_len;
+        p += val_len;
+        if (i == pack_id) break;
+    }
+    return true;
+}
+
 static void on_bulk_write_complete(void *arg) {
     bulk_io_context *bulk_io_ctx = (bulk_io_context *)arg;
     if(!bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->num_ios)) {
@@ -534,10 +553,8 @@ void SlabQ::DoReclaim() {
         for (int i = 0; i < count; i++) {
             kvr_key *mv_key = new kvr_key;
             kvr_value *mv_val = new kvr_value;
-            mv_val->length = kvs[i]->pval->actual_len;
-            mv_val->val = kvs[i]->pval->c_val;
             int pack_id = kvs[i]->pkey->get_seq() % pack_size_;
-            new_unpack_value(pack_size_, pack_id, kvs[i]->pval->c_val, kvs[i]->pval->actual_len, mv_key, NULL);
+            new_unpack_replace_value(pack_size_, pack_id, kvs[i]->pval->c_val, kvs[i]->pval->actual_len, mv_key, mv_val);
             kvr_context* kvr_ctx = new kvr_context(KVR_REPLACE, mv_key, mv_val, kvs[i]);
             q.enqueue(kvr_ctx);
             kvr_ctx_vec.push_back(kvr_ctx);
