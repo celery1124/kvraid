@@ -40,6 +40,7 @@ typedef struct {
 } kv_context;
 typedef struct {
     int num_ios;
+    phy_key* get_pkey;
     phy_key* pkey;
     phy_val* pval;
     moodycamel::BlockingConcurrentQueue<kv_context*> *kvQ;

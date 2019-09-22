@@ -112,7 +112,7 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
             if (replace_list.size() > MAX_ENTRIES_PER_GC || 
             scan_len++ > MAX_SCAN_LEN_PER_GC) break;
 
-            if (it->second.size() == k_*pack_size_) { // can be trim directly
+            if (it->second.size() == group_size_) { // can be trim directly
                 parent_->add_delete_id(it->first);
                 it = group_list_.erase(it);
             }
@@ -494,6 +494,7 @@ void SlabQ::DoTrimAll() {
 
 void on_reclaim_get_complete(void *args) {
     reclaim_get_context* ctx = (reclaim_get_context*) args;
+    delete ctx->get_pkey;
     kv_context* kv_ctx = new kv_context {ctx->pkey, ctx->pval};
     ctx->kvQ->enqueue(kv_ctx);
 
@@ -514,11 +515,13 @@ void SlabQ::DoReclaim() {
     moodycamel::BlockingConcurrentQueue<kv_context *> kvQ;
     for (auto it = actives.begin(); it != actives.end(); ++it) {
         int dev_idx = get_dev_idx(*it);
-        phy_key *pkey = new phy_key(sid_, *it);
+        int pack_id = (*it)%pack_size_;
+        phy_key *get_pkey = new phy_key(sid_, (*it)-pack_id); // clear last bit
+        phy_key *pkey = new phy_key(sid_, (*it));
         char *c_val = (char*)malloc(buffer_size);
         phy_val *pval = new phy_val(c_val, buffer_size);
-        reclaim_get_context *aget_ctx = new reclaim_get_context {num_ios, pkey, pval, &kvQ};
-        parent_->ssds_[dev_idx].kv_aget(pkey, pval, on_reclaim_get_complete, aget_ctx);
+        reclaim_get_context *aget_ctx = new reclaim_get_context {num_ios, get_pkey, pkey, pval, &kvQ};
+        parent_->ssds_[dev_idx].kv_aget(get_pkey, pval, on_reclaim_get_complete, aget_ctx);
     }
 
     int count;
