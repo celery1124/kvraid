@@ -103,24 +103,26 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
     int scan_len = 0;
     std::vector<std::pair<uint64_t,std::vector<uint8_t>>> replace_list;
     replace_list.reserve(MAX_ENTRIES_PER_GC);
-    std::unique_lock<std::mutex> lock(gl_mutex_);
-    auto it = group_list_.begin();
-    while (it != group_list_.end()) {
-        // control scan length
-        if (actives.size() > MAX_ENTRIES_PER_GC || 
-        scan_len++ > MAX_SCAN_LEN_PER_GC) break;
+    {
+        std::unique_lock<std::mutex> lock(gl_mutex_);
+        auto it = group_list_.begin();
+        while (it != group_list_.end()) {
+            // control scan length
+            if (actives.size() > MAX_ENTRIES_PER_GC || 
+            scan_len++ > MAX_SCAN_LEN_PER_GC) break;
 
-        if (it->second.size() == k_) { // can be trim directly
-            parent_->add_delete_id(it->first);
-            it = group_list_.erase(it);
+            if (it->second.size() == k_) { // can be trim directly
+                parent_->add_delete_id(it->first);
+                it = group_list_.erase(it);
 
+            }
+            else if (it->second.size() >= min_num_invalids) {
+                replace_list.push_back(std::move(*it));
+                it = group_list_.erase(it);
+            }
+            else
+                ++it;
         }
-        else if (it->second.size() >= min_num_invalids) {
-            replace_list.push_back(std::pair<uint64_t,std::vector<uint8_t>>(it->first, it->second));
-            it = group_list_.erase(it);
-        }
-        else
-            ++it;
     }
 
     // get active list 
