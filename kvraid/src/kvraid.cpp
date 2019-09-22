@@ -6,12 +6,13 @@
 #include "kvraid.h"
 
 #define RECLAIMS_BULKS 2 * k_
-#define MAX_TRIM_NUM 512
+#define MAX_TRIM_NUM 1024
 #define TRIM_GUARD_NUM 2048
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
 #define GC_DEV_UTIL_THRES 0.55
 #define GC_DELETE_Q_THRES 0
+#define GC_INTERVAL 900 // ms
 
 #define DEQ_TIMEOUT 500 // us
 
@@ -108,7 +109,7 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
         auto it = group_list_.begin();
         while (it != group_list_.end()) {
             // control scan length
-            if (actives.size() > MAX_ENTRIES_PER_GC || 
+            if (replace_list.size() > MAX_ENTRIES_PER_GC || 
             scan_len++ > MAX_SCAN_LEN_PER_GC) break;
 
             if (it->second.size() == k_) { // can be trim directly
@@ -551,7 +552,7 @@ void SlabQ::DoGC() {
 }
 
 void SlabQ::bg_GC() {
-    const auto timeWindow = std::chrono::milliseconds(200);
+    const auto timeWindow = std::chrono::milliseconds(GC_INTERVAL);
 
     while(true)
     {
