@@ -24,13 +24,13 @@
 #include "kv_device.h"
 #include "mapping_table.h"
 
-#define MAX_ENTRIES_PER_GC 2048
-#define MAX_SCAN_LEN_PER_GC 32768
+#define MAX_ENTRIES_PER_GC 8192
+#define MAX_SCAN_LEN_PER_GC 524288
 
 #define IDEAL_KV_PACK_SIZE 8192
 #define MAX_PACK_SIZE 2
 
-#define GC_MIN_INVALID_BIAS 1
+#define GC_MIN_INVALID_BIAS 0
 
 namespace kvraid_pack {
 
@@ -134,15 +134,27 @@ public:
     std::unordered_map<uint64_t,std::vector<uint8_t>> group_list_;
     std::mutex gl_mutex_;
     
-    DeleteQ() {}
+    DeleteQ() {group_list_.reserve(20e6);}
     DeleteQ(SlabQ* p, int k) : parent_(p), k_(k) {}
     ~DeleteQ(){
         int total_invalid = 0;
+        int cnt4=0,cnt3=0,cnt2=0,cnt1=0;
         for (auto it = group_list_.begin(); it != group_list_.end(); ++it) {
-            for (int i = 0; i < it->second.size(); i++) total_invalid++;
+                switch (it->second.size()) {
+                case 1:
+                case 2: cnt1++;total_invalid+=1;break;
+                case 3:
+                case 4: cnt2++;total_invalid+=2;break;
+                case 5:
+                case 6: cnt3++;total_invalid+=3;break;
+                case 7:
+                case 8: cnt4++;total_invalid+=4;break;
+                default: break;
+                }
+            //for (int i = 0; i < it->second.size(); i++) total_invalid++;
         }
         FILE *fd = fopen("kv_device.log","a");
-        fprintf(fd, "invalid-alive %d\n", total_invalid);
+        fprintf(fd, "invalid-alive %d, IA4 %d, IA3 %d, IA2 %d, IA1 %d\n", total_invalid, cnt4, cnt3, cnt2, cnt1);
         fclose(fd);
     }
     void insert(uint64_t index);

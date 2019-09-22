@@ -6,12 +6,13 @@
 #include "kvraid_pack.h"
 
 #define RECLAIMS_BULKS 4 * k_
-#define MAX_TRIM_NUM 512
+#define MAX_TRIM_NUM 1024
 #define TRIM_GUARD_NUM 2048
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
 #define GC_DEV_UTIL_THRES 0.55
 #define GC_DELETE_Q_THRES 0
+#define GC_INTERVAL 900 // ms
 
 #define DEQ_TIMEOUT 500 // us
 
@@ -101,36 +102,44 @@ void DeleteQ::insert(uint64_t index) {
 void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives, 
     std::vector<uint64_t>& groups) {
     int scan_len = 0;
-    std::unique_lock<std::mutex> lock(gl_mutex_);
-    auto it = group_list_.begin();
-    while (it != group_list_.end()) {
-        // control scan length
-        if (actives.size() > MAX_ENTRIES_PER_GC || 
-        scan_len++ > MAX_SCAN_LEN_PER_GC) break;
+    std::vector<std::pair<uint64_t,std::vector<uint8_t>>> replace_list;
+    replace_list.reserve(MAX_ENTRIES_PER_GC);
+    {
+        std::unique_lock<std::mutex> lock(gl_mutex_);
+        auto it = group_list_.begin();
+        while (it != group_list_.end()) {
+            // control scan length
+            if (replace_list.size() > MAX_ENTRIES_PER_GC || 
+            scan_len++ > MAX_SCAN_LEN_PER_GC) break;
 
-        if (it->second.size() >= min_num_invalids) {
-            // get active list 
-            char *tmp_bitmap = (char*)calloc(group_size_, sizeof(char));
-            int num_actives = 0;
-            for (int i = 0; i< it->second.size(); i++) {
-                tmp_bitmap[it->second[i]] = 1;
-            }
-            for (int i = 0; i< group_size_; i++) {
-                if(tmp_bitmap[i]==0) {
-                    actives.push_back(it->first*group_size_+i);
-                    num_actives++;
-                }
-            }
-            if (num_actives == 0) {// can be trim directly
+            if (it->second.size() == k_*pack_size_) { // can be trim directly
                 parent_->add_delete_id(it->first);
+                it = group_list_.erase(it);
+            }
+            else if (it->second.size() >= min_num_invalids*pack_size_) {
+                replace_list.push_back(std::move(*it));
+                it = group_list_.erase(it);
+                
             }
             else
-                groups.push_back(it->first);
-            it = group_list_.erase(it);
-            free(tmp_bitmap);
+                ++it;
         }
-        else
-            ++it;
+    }
+    // get active list 
+    for (auto it = replace_list.begin(); it != replace_list.end(); ++it){
+        char *tmp_bitmap = (char*)calloc(group_size_, sizeof(char));
+        int num_actives = 0;
+        for (int i = 0; i< it->second.size(); i++) {
+            tmp_bitmap[it->second[i]] = 1;
+        }
+        for (int i = 0; i< group_size_; i++) {
+            if(tmp_bitmap[i]==0) {
+                actives.push_back(it->first*group_size_+i);
+                num_actives++;
+            }
+        }
+        groups.push_back(it->first);
+        free(tmp_bitmap);
     }
 }
 
@@ -595,7 +604,7 @@ void SlabQ::DoGC() {
 }
 
 void SlabQ::bg_GC() {
-    const auto timeWindow = std::chrono::milliseconds(200);
+    const auto timeWindow = std::chrono::milliseconds(GC_INTERVAL);
 
     while(true)
     {
