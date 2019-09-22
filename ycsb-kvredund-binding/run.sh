@@ -160,6 +160,18 @@ do
 							printf "invalid-alive: " >> $result_txt
 							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $2} END { print SUM }' >> $result_txt
 							printf "\n" >> $result_txt
+							printf "invalid-alive-group0: " >> $result_txt
+							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $4} END { print SUM }' >> $result_txt
+							printf "\n" >> $result_txt
+							printf "invalid-alive-group1: " >> $result_txt
+							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $6} END { print SUM }' >> $result_txt
+							printf "\n" >> $result_txt
+							printf "invalid-alive-group2: " >> $result_txt
+							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $8} END { print SUM }' >> $result_txt
+							printf "\n" >> $result_txt
+							printf "invalid-alive-group3: " >> $result_txt
+							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $10} END { print SUM }' >> $result_txt
+							printf "\n" >> $result_txt
 
 							echo "" >> $result_txt
 							rm -rf *.log
