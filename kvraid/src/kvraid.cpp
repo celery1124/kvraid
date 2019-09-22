@@ -101,6 +101,8 @@ void DeleteQ::insert(uint64_t index) {
 void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives, 
     std::vector<uint64_t>& groups) {
     int scan_len = 0;
+    std::vector<std::pair<uint64_t,std::vector<uint8_t>>> replace_list;
+    replace_list.reserve(MAX_ENTRIES_PER_GC);
     std::unique_lock<std::mutex> lock(gl_mutex_);
     auto it = group_list_.begin();
     while (it != group_list_.end()) {
@@ -114,25 +116,30 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
 
         }
         else if (it->second.size() >= min_num_invalids) {
-            // get active list 
-            char *tmp_bitmap = (char*)calloc(k_, sizeof(char));
-            int num_actives = 0;
-            for (int i = 0; i< it->second.size(); i++) {
-                tmp_bitmap[it->second[i]] = 1;
-            }
-            for (int i = 0; i< k_; i++) {
-                if(tmp_bitmap[i]==0) {
-                    actives.push_back(it->first*group_size_+i);
-                    num_actives++;
-                }
-            }
-            groups.push_back(it->first);
+            replace_list.push_back(std::pair<uint64_t,std::vector<uint8_t>>(it->first, it->second));
             it = group_list_.erase(it);
-            free(tmp_bitmap);
         }
         else
             ++it;
     }
+
+    // get active list 
+    for (auto it = replace_list.begin(); it != replace_list.end(); ++it){
+        char *tmp_bitmap = (char*)calloc(k_, sizeof(char));
+        int num_actives = 0;
+        for (int i = 0; i< it->second.size(); i++) {
+            tmp_bitmap[it->second[i]] = 1;
+        }
+        for (int i = 0; i< k_; i++) {
+            if(tmp_bitmap[i]==0) {
+                actives.push_back(it->first*group_size_+i);
+                num_actives++;
+            }
+        }
+        groups.push_back(it->first);
+        free(tmp_bitmap);
+    }
+            
 }
 
 bool DeleteQ::erase(uint64_t index) {
