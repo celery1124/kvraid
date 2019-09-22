@@ -158,7 +158,7 @@ do
 							cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
 
 							printf "invalid-alive: " >> $result_txt
-							cat kv_device.log|grep "invalid-alive" | awk '{print $2}'>> $result_txt
+							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $2} END { print SUM }' >> $result_txt
 							printf "\n" >> $result_txt
 
 							echo "" >> $result_txt
