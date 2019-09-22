@@ -108,7 +108,12 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
         if (actives.size() > MAX_ENTRIES_PER_GC || 
         scan_len++ > MAX_SCAN_LEN_PER_GC) break;
 
-        if (it->second.size() >= min_num_invalids) {
+        if (it->second.size() == k_) { // can be trim directly
+            parent_->add_delete_id(it->first);
+            it = group_list_.erase(it);
+
+        }
+        else if (it->second.size() >= min_num_invalids) {
             // get active list 
             char *tmp_bitmap = (char*)calloc(k_, sizeof(char));
             int num_actives = 0;
@@ -121,11 +126,7 @@ void DeleteQ::scan (int min_num_invalids, std::vector<uint64_t>& actives,
                     num_actives++;
                 }
             }
-            if (num_actives == 0) {// can be trim directly
-                parent_->add_delete_id(it->first);
-            }
-            else
-                groups.push_back(it->first);
+            groups.push_back(it->first);
             it = group_list_.erase(it);
             free(tmp_bitmap);
         }
