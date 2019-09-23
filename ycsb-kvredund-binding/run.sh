@@ -189,7 +189,7 @@ do
 				fi
 			done
 			# no meta_type for KVMirror
-			if [ "$kv_type" == "2" ] || [ "$kv_type" == "1" ] || [ "$kv_type" == "0" ]; then
+			if [ "$kv_type" == "2" ] || [ "$kv_type" == "1" ] || [ "$kv_type" == "3" ]; then
 				break
 			fi
 		done
