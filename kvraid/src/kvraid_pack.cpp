@@ -552,7 +552,7 @@ void SlabQ::DoReclaim() {
             kvr_key *mv_key = new kvr_key;
             kvr_value *mv_val = new kvr_value;
             int pack_id = kvs[i]->pkey->get_seq() % pack_size_;
-            new_unpack_replace_value(pack_size_, pack_id, kvs[i]->pval->c_val, kvs[i]->pval->actual_len, mv_key, mv_val);
+            new_unpack_replace_value(pack_size_, pack_id, kvs[i]->pval->c_val, kvs[i]->pval->actual_len, mv_val);
             char *replace_val = (char *)malloc(mv_val->length);
             memcpy(replace_val, mv_val->val, mv_val->length);
             free(kvs[i]->pval->c_val);
