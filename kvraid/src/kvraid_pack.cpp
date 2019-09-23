@@ -587,7 +587,8 @@ void SlabQ::DoReclaim() {
                 dq_insert(ack_kvr_ctx->replace_key.get_seq());                        
             }
         }
-        
+    }
+    for (int i = 0; i < kvr_ctx_vec.size(); i++) {
 
         free(kvr_ctx_vec[i]->kv_ctx->pval->c_val);
         delete kvr_ctx_vec[i]->kv_ctx->pkey;

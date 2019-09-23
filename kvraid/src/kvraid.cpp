@@ -265,7 +265,7 @@ void SlabQ::processQ(int id) {
         char **code = new char*[r_];
         int buffer_size = sizeof(char) * slab_size_;
         for (int i = 0; i<k_; i++) {
-            data[i] = (char *) malloc(buffer_size);
+            data[i] = (char *) calloc(buffer_size, sizeof(char));
         }
         for (int i = 0; i<r_; i++) {
             code[i] = (char *) malloc(buffer_size);
