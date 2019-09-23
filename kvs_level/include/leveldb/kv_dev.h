@@ -13,9 +13,10 @@
 
 namespace kvssd {
   typedef struct {
-      std::atomic<uint32_t> num_store{0};
-      std::atomic<uint32_t> num_retrieve{0};
-      std::atomic<uint32_t> num_delete{0};
+    std::atomic<uint64_t> write_bytes{0};
+    std::atomic<uint32_t> num_store{0};
+    std::atomic<uint32_t> num_retrieve{0};
+    std::atomic<uint32_t> num_delete{0};
   } kvd_stats;
 
   class KV_DEV {
@@ -29,7 +30,7 @@ namespace kvssd {
       };
       ~KV_DEV() {
         FILE *fd = fopen("kv_device.log","a");
-        fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        fprintf(fd, "store %d, get %d, delete %d, write_bytes %lu\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load(), stats.write_bytes.load());
         fclose(fd);
         sem_destroy(&q_sem);
       };

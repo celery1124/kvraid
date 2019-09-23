@@ -90,6 +90,7 @@ bool KV_DEVICE::kv_store(phy_key *key, phy_val *value)
     gettimeofday(&tp, NULL);
     printf("[%.6f] kv_device:insert key: %s, value: %s\n", ((float)(tp.tv_sec*1000000 + tp.tv_usec - ts)) / 1000000 ,ckey, cval);
 #endif
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 		
@@ -111,6 +112,7 @@ bool KV_DEVICE::kv_store(std::string *key, std::string *value)
         exit(1);
     }
 
+    stats.write_bytes.fetch_add(value->size(), std::memory_order_relaxed);
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 		
@@ -253,6 +255,7 @@ bool KV_DEVICE::kv_astore(phy_key *key, phy_val *value, void (*callback)(void *)
         exit(1);
     }
 
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
@@ -279,6 +282,7 @@ bool KV_DEVICE::kv_astore(std::string *key, phy_val *value, void (*callback)(voi
         exit(1);
     }
 
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 }

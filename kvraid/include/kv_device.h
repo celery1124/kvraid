@@ -31,6 +31,7 @@
 // static void io_task(void *arg);
 
 typedef struct {
+    std::atomic<uint64_t> write_bytes{0};
     std::atomic<uint32_t> num_store{0};
     std::atomic<uint32_t> num_retrieve{0};
     std::atomic<uint32_t> num_delete{0};
@@ -64,7 +65,7 @@ public:
         // threadpool_destroy(pool, 1);
         sem_destroy(&q_sem);
         FILE *fd = fopen("kv_device.log","a");
-        fprintf(fd, "store %d, get %d, delete %d\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load());
+        fprintf(fd, "store %d, get %d, delete %d, write_bytes %lu\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load(), stats.write_bytes.load());
         fprintf(fd, "usage %.3f\n", (double)get_capacity()*get_util()/1024/1024);
         fclose(fd);
     };

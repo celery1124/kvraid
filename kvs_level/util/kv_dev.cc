@@ -112,6 +112,7 @@ namespace kvssd {
     }
     //printf("[kv_store] key: %s, size: %d\n",std::string(key->data(),key->size()).c_str(), val->size());
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     return ret;
   }
 
@@ -138,6 +139,7 @@ namespace kvssd {
         exit(1);
     }
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     return ret;
   }
 
