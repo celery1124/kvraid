@@ -469,14 +469,14 @@ void SlabQ::DoTrim() {
         int dev_idx = group_id%(k_+r_);
         //physical trim
         for (int i = 0; i < k_; i++) {
-            phy_key *phykey = new phy_key(sid_, group_id*k_ + i);
+            phy_key *phykey = new phy_key(sid_, (group_id*k_ + i)*pack_size_);
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
             parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
             dev_idx = (dev_idx+1)%(k_+r_);
         }
         for (int i = 0; i < r_; i++) {
-            phy_key *phykey = new phy_key(sid_, group_id*k_ );
+            phy_key *phykey = new phy_key(sid_, group_id*k_*pack_size_ );
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
             parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
@@ -494,14 +494,14 @@ void SlabQ::DoTrimAll() {
         int dev_idx = group_id%(k_+r_);
         //physical trim
         for (int i = 0; i < k_; i++) {
-            phy_key *phykey = new phy_key(sid_, group_id*k_ + i);
+            phy_key *phykey = new phy_key(sid_, (group_id*k_ + i)*pack_size_);
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
             parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
             dev_idx = (dev_idx+1)%(k_+r_);
         }
         for (int i = 0; i < r_; i++) {
-            phy_key *phykey = new phy_key(sid_, group_id*k_ );
+            phy_key *phykey = new phy_key(sid_, group_id*k_*pack_size_ );
             delete_io_context *delete_io_ctx = new delete_io_context {dev_idx, phykey};
             parent_->ssds_[dev_idx].kv_adelete(phykey, on_delete_complete, delete_io_ctx);
             //printf("delete [ssd %d] group_id %d, phykey %d\n",dev_idx, group_id, phykey->get_seq());
