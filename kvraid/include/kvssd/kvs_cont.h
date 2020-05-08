@@ -10,14 +10,14 @@
 class KVS_CONT {
     public:
       char kvs_dev_path[32];
-      int64_t log_capacity_; //B
+      int64_t log_capacity_; //GB
       kvs_device_handle dev;
       kvs_container_handle cont_handle;
 
-    int64_t get_log_capacity() {return log_capacity_;}
+    int64_t get_log_capacity() {return log_capacity_;} //B
     
     public:
-      KVS_CONT(char* dev_path, int qdepth, int64_t log_cap) : log_capacity_(log_cap) {
+      KVS_CONT(char* dev_path, int qdepth, int64_t log_cap) : log_capacity_(log_cap<<30) {
         memset(kvs_dev_path, 0, 32);
         memcpy(kvs_dev_path, dev_path, strlen(dev_path));
         kvs_init_options options;
