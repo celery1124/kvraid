@@ -11,6 +11,7 @@
 #include "kv_writebatch.h"
 #include "kv_device.h"
 #include "mapping_table.h"
+#include "cache/cache.h"
 
 class Iterator {
 public:
@@ -24,16 +25,77 @@ public:
     virtual kvr_value Value() = 0;
 };
 
+enum CacheType {
+  LRU,
+  LFU,
+};
+
+class CacheEntry { 
+public:
+    char *val;
+    int size;
+    CacheEntry() : val(NULL), size(0){};
+    CacheEntry(char *v, int s) : size(s) {
+        val = (char *)malloc(s);
+        memcpy(val, v, size);
+    }
+    ~CacheEntry() {if(val) free(val);}
+};
+
+template <class T>
+static void DeleteEntry(const Slice& /*key*/, void* value) {
+  T* typed_value = reinterpret_cast<T*>(value);
+  delete typed_value;
+}
+
 class KVR {
 public:
-    KVR() {};
-    virtual ~KVR() {};
+    Cache *cache_;
+public:
+    KVR() {cache_ = NewLRUCache(2048 << 20, 0);} // default constructor
+    KVR(CacheType t, size_t capacityMB, int shard_bits) {
+        switch (t) {
+            case LRU:
+                cache_ = NewLRUCache(capacityMB << 20, shard_bits);
+                break;
+            case LFU:
+                cache_ = NewLFUCache(capacityMB << 20, shard_bits);
+                break;
+            default:
+                cache_ = NewLRUCache(capacityMB << 20, shard_bits);
+        }
+    };
+    virtual ~KVR() {delete cache_;};
 
     // define KVR interface
     virtual bool kvr_insert(kvr_key *key, kvr_value *value) = 0;
 	virtual bool kvr_update(kvr_key *key, kvr_value *value) = 0;
     virtual bool kvr_delete(kvr_key *key) = 0;
 	virtual bool kvr_get(kvr_key *key, kvr_value *value) = 0;
+    
+    // KV cache interface
+	virtual Cache::Handle* kvr_read_cache(std::string& key, kvr_value *value) {
+        Cache::Handle *h = cache_->Lookup(key);
+        if (h != NULL) {
+            CacheEntry *rd_val = reinterpret_cast<CacheEntry*>(cache_->Value(h));
+            value->length = rd_val->size;
+            value->val = (char*)malloc(value->length);
+            memcpy(value->val, rd_val->val, value->length);
+        }
+        return h;
+    };
+    virtual Cache::Handle* kvr_insert_cache(std::string& key, kvr_value *value) {
+        CacheEntry *ins_val = new CacheEntry(value->val, value->length);
+        size_t charge = sizeof(CacheEntry) + value->length;
+        Cache::Handle *h = cache_->Insert(key, reinterpret_cast<void*>(ins_val), charge, DeleteEntry<CacheEntry*>);
+        return h;
+    };
+    virtual void kvr_erase_cache(std::string& key) {
+        cache_->Erase(key);
+    };
+    virtual void kvr_release_cache(Cache::Handle* h) {
+        cache_->Release(h);
+    };
 
     virtual bool kvr_write_batch(WriteBatch *batch) = 0;
     

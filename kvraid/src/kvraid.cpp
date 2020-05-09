@@ -658,6 +658,8 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
 
     std::string skey = std::string(key->key, key->length);
     //LockEntry *l = req_key_fl_.Lock(skey);
+    // Evict from cache
+    kvr_erase_cache(skey);
 
     // write to the context queue
     kvr_context kvr_ctx(KVR_UPDATE, key, &new_value);
@@ -700,6 +702,12 @@ bool KVRaid::kvr_delete(kvr_key *key) {
 bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
     //LockEntry *l = req_key_fl_.Lock(skey);
+    Cache::Handle *h = kvr_read_cache(skey, value);
+
+    if (h != NULL) { // hit in cache
+        kvr_release_cache(h);
+        return true;
+    }
 
     phy_key pkey;
     // lookup log->phy translation table
@@ -709,6 +717,7 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
         printf("[KVRaid::kvr_get] logical key not exist\n");
         exit(-1);
     }
+    // First, search for cache
     
     int slab_id = pkey.get_slab_id();
     int seq = pkey.get_seq();
@@ -730,6 +739,9 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);
     memcpy(value->val, new_val.val, new_val.length);
+
+    h = kvr_insert_cache(skey, value);
+    kvr_release_cache(h);
 
     free(actual_val);
 

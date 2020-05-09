@@ -349,7 +349,7 @@ private:
     
 public:
 	KVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA) :
-    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), do_gc_(false), data_volume_(0){
+    KVR(LRU, 2048, 0), k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), do_gc_(false), data_volume_(0){
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
         ec_.setup();
