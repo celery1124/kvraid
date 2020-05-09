@@ -13,6 +13,13 @@
 #include "mapping_table.h"
 #include "cache/cache.h"
 
+typedef struct {
+    std::atomic<uint64_t> hit{0};
+    std::atomic<uint64_t> miss{0};
+    std::atomic<uint64_t> fill{0};
+    std::atomic<uint64_t> erase{0};
+} cache_stats;
+
 class Iterator {
 public:
     Iterator() {};
@@ -50,6 +57,7 @@ static void DeleteEntry(const Slice& /*key*/, void* value) {
 
 class KVR {
 public:
+    cache_stats stats_;
     Cache *cache_;
 public:
     KVR() {cache_ = NewLRUCache(2048 << 20, 0);} // default constructor
@@ -65,7 +73,13 @@ public:
                 cache_ = NewLRUCache(capacityMB << 20, shard_bits);
         }
     };
-    virtual ~KVR() {delete cache_;};
+    virtual ~KVR() {
+        printf("cache hit: %ld\n",stats_.hit.load());
+        printf("cache miss: %ld\n",stats_.miss.load());
+        printf("cache fill: %ld\n",stats_.fill.load());
+        printf("cache erase: %ld\n",stats_.erase.load());
+        delete cache_;
+    };
 
     // define KVR interface
     virtual bool kvr_insert(kvr_key *key, kvr_value *value) = 0;
@@ -81,17 +95,24 @@ public:
             value->length = rd_val->size;
             value->val = (char*)malloc(value->length);
             memcpy(value->val, rd_val->val, value->length);
+            stats_.hit.fetch_add(1, std::memory_order_relaxed);
         }
+        else 
+            stats_.miss.fetch_add(1, std::memory_order_relaxed);
         return h;
     };
     virtual Cache::Handle* kvr_insert_cache(std::string& key, kvr_value *value) {
         CacheEntry *ins_val = new CacheEntry(value->val, value->length);
         size_t charge = sizeof(CacheEntry) + value->length;
         Cache::Handle *h = cache_->Insert(key, reinterpret_cast<void*>(ins_val), charge, DeleteEntry<CacheEntry*>);
+
+        stats_.fill.fetch_add(1, std::memory_order_relaxed);
         return h;
     };
     virtual void kvr_erase_cache(std::string& key) {
         cache_->Erase(key);
+
+        stats_.erase.fetch_add(1, std::memory_order_relaxed);
     };
     virtual void kvr_release_cache(Cache::Handle* h) {
         cache_->Release(h);
