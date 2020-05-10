@@ -5,14 +5,15 @@
 #include <assert.h>
 #include <unistd.h>
 #include <thread>
+#include <cmath>
 
 #include "kvr.h"
 #include "kvraid.h"
 #include "kvec.h"
 
-#define thread_cnt 8
-#define OBJ_LEN 512+256
-#define DEV_CAP 1048576
+#define OBJ_MAX_LEN 4000
+#define OBJ_MIN_LEN 100
+#define DEV_CAP 1 << 30
 
 class Random {
  private:
@@ -91,90 +92,173 @@ class RandomGenerator {
 };
 
 void load(KVR *kvr, int num, bool seq, int tid) {
-    RandomGenerator gen;
-    Random rand(0);
-    kvr_key *keys = new kvr_key[num];
-    kvr_value *vals = new kvr_value[num];
-    for (int i = 0; i < num; i++) {
-        const int k = seq ? i + tid*num : (rand.Next() % num) + tid*num;
-        char key[100];
-        snprintf(key, sizeof(key), "%016d", k);
-        char *value = gen.Generate(OBJ_LEN);
-
-        keys[i].key =key;
-        keys[i].length = 16;
-        vals[i].val = value;
-        vals[i].length = OBJ_LEN;
-
-        kvr->kvr_insert(&keys[i], &vals[i]);
-        //printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
-    }
-    delete [] keys;
-    delete [] vals;
-}
-
-void update(KVR *kvr, int num, bool seq, int tid) {
   RandomGenerator gen;
-  Random rand(0);
+  Random key_rand(tid);
+  Random vlen_rand(tid);
   kvr_key *keys = new kvr_key[num];
   kvr_value *vals = new kvr_value[num];
-  for (int j = 0; j < 1; j++) {
-    for (int i = 0; i < num; i++) {
-        const int k = seq ? i + tid*num : (rand.Next() % num) + tid*num;
-        char key[100];
-        snprintf(key, sizeof(key), "%016d", k);
-        char *value = gen.Generate(OBJ_LEN);
+  for (int i = 0; i < num; i++) {
+      const int k = seq ? i + tid*num : (key_rand.Next() % num) + tid*num;
+      char key[100];
+      snprintf(key, sizeof(key), "%016d", k);
+      int vlen = vlen_rand.Uniform(OBJ_MAX_LEN-OBJ_MIN_LEN) + OBJ_MIN_LEN;
+      char *value = gen.Generate(vlen);
 
+      keys[i].key =key;
+      keys[i].length = 16;
+      vals[i].val = value;
+      vals[i].length = vlen;
+
+      kvr->kvr_insert(&keys[i], &vals[i]);
+      //printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+  }
+  delete [] keys;
+  delete [] vals;
+}
+
+void mixed (KVR *kvr, int dist, double wr_ratio, int ops_nums, int record_nums, int tid) {
+  RandomGenerator gen;
+  Random key_rand(tid);
+  Random vlen_rand(tid);
+  kvr_key *keys = new kvr_key[ops_nums];
+  kvr_value *vals = new kvr_value[ops_nums];
+  int ops ; // 0 - update, 1 - get
+  for (int i = 0; i < ops_nums; i++) {
+      ops = (double(rand() % 100) / 100) < wr_ratio ? 0 : 1;
+      int k;
+      if (dist == 0) { // uniform
+        k = key_rand.Uniform(record_nums) ;
+      }
+      else if (dist == 1) { // zipfian
+        k = key_rand.Skewed((int)std::log2(record_nums));
+      }
+      else if (dist == 2) { // seq
+        k = (i + ops_nums*tid) % record_nums;
+      }
+      else { // default
+        k = key_rand.Uniform(record_nums) ;
+      }
+      char key[100];
+      snprintf(key, sizeof(key), "%016d", k);
+      int vlen = vlen_rand.Uniform(OBJ_MAX_LEN-OBJ_MIN_LEN) + OBJ_MIN_LEN;
+
+      if (ops == 0) {
+        char *value = gen.Generate(vlen);
         keys[i].key =key;
         keys[i].length = 16;
         vals[i].val = value;
-        vals[i].length = OBJ_LEN;
+        vals[i].length = vlen;
 
         kvr->kvr_update(&keys[i], &vals[i]);
         //printf("[%d update] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+      }
+      else if (ops == 1) {
+        keys[i].key =key;
+        keys[i].length = 16;
+        vals[i].val = NULL;
+        kvr->kvr_get(&keys[i], &vals[i]);
+        //printf("[get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
+        free(vals[i].val);
+      }
+      else {
+        printf ("Mixed workload wrong ops!\n");
+        exit(-1);
+      }
+      
+  }
+  delete [] keys;
+  delete [] vals;
+}
+
+void update(KVR *kvr, int dist, int ops_nums, int record_nums, int tid) {
+  RandomGenerator gen;
+  Random key_rand(0);
+  Random vlen_rand(tid);
+  kvr_key *keys = new kvr_key[ops_nums];
+  kvr_value *vals = new kvr_value[ops_nums];
+  for (int i = 0; i < ops_nums; i++) {
+    int k;
+    if (dist == 0) { // uniform
+      k = key_rand.Uniform(record_nums) ;
     }
+    else if (dist == 1) { // zipfian
+      k = key_rand.Skewed((int)std::log2(record_nums));
+    }
+    else if (dist == 2) { // seq
+      k = (i + ops_nums*tid) % record_nums;
+    }
+    else { // default
+      k = key_rand.Uniform(record_nums) ;
+    }
+    char key[100];
+    snprintf(key, sizeof(key), "%016d", k);
+    int vlen = vlen_rand.Uniform(OBJ_MAX_LEN-OBJ_MIN_LEN) + OBJ_MIN_LEN;
+
+    char *value = gen.Generate(vlen);
+
+    keys[i].key =key;
+    keys[i].length = 16;
+    vals[i].val = value;
+    vals[i].length = vlen;
+
+    kvr->kvr_update(&keys[i], &vals[i]);
+    //printf("[%d update] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
   }
   delete [] keys;
   delete [] vals;
 }
 
 
-void get(KVR *kvr, int num, int tid) {
-    kvr_key *keys = new kvr_key[num];
-    kvr_value *vals = new kvr_value[num];
-    for (int i = 0; i < num; i++) {
-        char key[100];
-        snprintf(key, sizeof(key), "%016d", i);
-
-        keys[i].key =key;
-        keys[i].length = 16;
-        vals[i].val = NULL;
-        kvr->kvr_get(&keys[i], &vals[i]);
-        printf("[get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
-        free(vals[i].val);
+void get(KVR *kvr, int dist, int ops_nums, int record_nums, int tid) {
+  Random key_rand(tid);
+  kvr_key *keys = new kvr_key[ops_nums];
+  kvr_value *vals = new kvr_value[ops_nums];
+  for (int i = 0; i < ops_nums; i++) {
+    int k;
+    if (dist == 0) { // uniform
+      k = key_rand.Uniform(record_nums) ;
     }
+    else if (dist == 1) { // zipfian
+      k = key_rand.Skewed((int)std::log2(record_nums));
+    }
+    else if (dist == 2) { // seq
+      k = (i + ops_nums*tid) % record_nums;
+    }
+    else { // default
+      k = key_rand.Uniform(record_nums) ;
+    }
+    char key[100];
+    snprintf(key, sizeof(key), "%016d", k);
 
-    delete [] keys;
-    delete [] vals;
+    keys[i].key =key;
+    keys[i].length = 16;
+    vals[i].val = NULL;
+    kvr->kvr_get(&keys[i], &vals[i]);
+    //printf("[get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
+    free(vals[i].val);
+  }
+
+  delete [] keys;
+  delete [] vals;
 }
 
 void erased_get(KVR *kvr, int num, int tid) {
-    kvr_key *keys = new kvr_key[num];
-    kvr_value *vals = new kvr_value[num];
-    for (int i = 0; i < num; i++) {
-        char key[100];
-        snprintf(key, sizeof(key), "%016d", i);
+  kvr_key *keys = new kvr_key[num];
+  kvr_value *vals = new kvr_value[num];
+  for (int i = 0; i < num; i++) {
+      char key[100];
+      snprintf(key, sizeof(key), "%016d", i);
 
-        keys[i].key =key;
-        keys[i].length = 16;
-        vals[i].val = NULL;
-        kvr->kvr_erased_get(5, &keys[i], &vals[i]);
-        printf("[erased_get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
-        free(vals[i].val);
-    }
+      keys[i].key =key;
+      keys[i].length = 16;
+      vals[i].val = NULL;
+      kvr->kvr_erased_get(5, &keys[i], &vals[i]);
+      printf("[erased_get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
+      free(vals[i].val);
+  }
 
-    delete [] keys;
-    delete [] vals;
+  delete [] keys;
+  delete [] vals;
 }
 
 void seek (KVR *kvr, int skey) {
@@ -198,98 +282,151 @@ void seek (KVR *kvr, int skey) {
   delete it;
 }
 
-int main() {
-    int num_ssds = 6;
-    int k = 4, r = 2;
-    int slab_list[2] = {1024, 2048};
+int main(int argc, char *argv[]) {
+  std::string workload;
+  int kvr_type;
+  int meta_type;
+  int64_t record_nums, ops_nums;
+  int dist;
+  int thread_nums;
+  double wr_ratio;
+  if (argc < 9) {
+    printf("Usage: %s <workload (mixed, rdonly, udonly, recovery, seek)> <record_nums> <ops_nums> <distribution (0-uniform, 1-zipfian)> <kvr type (0-kvraid, 1-kvmirror, 2-kvec, 3-kvraid_pack)> <meta type (0-Mem, 1-Storage, 2-Cuckoo)> <thread_nums> <wr_ratio (0.0-1.0)>\n", argv[0]);
+    exit(0);
+  }
+  else {
+    workload = std::string(argv[1]);
+    record_nums = atoll(argv[2]);
+    ops_nums = atoll(argv[3]);
+    dist = atoi(argv[4]);
+    kvr_type = atoi(argv[5]);
+    meta_type = atoi(argv[6]);
+    thread_nums = atoi(argv[7]);
+    wr_ratio = atof(argv[8]);
+  }
+  int num_ssds = 6;
+  int k = 4, r = 2;
+  int slab_list[4] = {1024, 2048, 3072, 4096};
 
-    KVS_CONT* kvs_conts;
-    kvs_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
-    for (int i = 0; i < num_ssds; i++) {
-      std::string dev_name = "/dev/kvemul" + std::to_string(i);
-      (void) new (&kvs_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64, DEV_CAP);
-    }
-    KVR *kvr;
-    //kvr = NewKVRaid(k, r, 1, slab_list, kvs_conts, Storage);
-    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
-    kvr = NewKVRaidPack(k, r, 2, slab_list, kvs_conts, Mem, true);
-    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    //kvr = NewKVMirror(k, r, kvs_conts);
+  KVS_CONT* kvs_conts;
+  kvs_conts = (KVS_CONT*)malloc(num_ssds * sizeof(KVS_CONT));
+  for (int i = 0; i < num_ssds; i++) {
+    std::string dev_name = "/dev/kvemul" + std::to_string(i);
+    (void) new (&kvs_conts[i]) KVS_CONT((char *)dev_name.c_str(), 64, DEV_CAP);
+  }
+  KVR *kvr;
+  Cache *cache = NewLRUCache(512, 0); 
 
-    std::thread *th_load[16];
-    std::thread *th_update[16];
-    std::thread *th_get[16];
-    for (int i = 0; i< thread_cnt; i++) {
-        th_load[i] = new std::thread(load, kvr, 100000 , true, i);
-    }
+  switch(kvr_type) {
+    case 0:
+      kvr = NewKVRaid(k, r, 4, slab_list, kvs_conts, (MetaType)meta_type, false, cache);
+      break;
+    case 1:
+      kvr = NewKVMirror(k, r, kvs_conts, cache);
+      break;
+    case 2:
+      kvr = NewKVEC(k, r, 4, slab_list, kvs_conts, (MetaType)meta_type, cache);
+      break;
+    case 3:
+      kvr = NewKVRaidPack(k, r, 4, slab_list, kvs_conts, Mem, false, cache);
+      break;
+    default:
+      kvr = NewKVRaid(k, r, 4, slab_list, kvs_conts, (MetaType)meta_type, false, cache);
+      break;
+  }
 
-    for (int i = 0; i< thread_cnt; i++) {
-        th_load[i]->join();
-    }
+  std::thread **th_load = new std::thread*[thread_nums];
+  std::thread **th_run = new std::thread*[thread_nums];
 
-    printf("finish load\n\n");
+  // load phase
+  for (int i = 0; i< thread_nums; i++) {
+      th_load[i] = new std::thread(load, kvr, record_nums/thread_nums , true, i);
+  }
 
-    // close kvr and open again (for testing)
-    delete kvr; 
-    //kvr = NewKVEC(k, r, 1, slab_list, kvs_conts, Mem);
-    //kvr = NewKVRaid(k, r, 2, slab_list, kvs_conts, Mem, true);
-    kvr = NewKVRaidPack(k, r, 2, slab_list, kvs_conts, Mem, true);
+  for (int i = 0; i< thread_nums; i++) {
+      th_load[i]->join();
+  }
 
-    // seek(kvr, 19);
-    // printf("finish iteraotr test\n\n");
+  printf("finish load\n\n");
 
-    for (int i = 0; i< thread_cnt; i++) {
-        th_get[i] = new std::thread(erased_get, kvr, 100 , i);
-        //th_get[i] = new std::thread(get, kvr, 100 , i);
-    }
+  // close kvr and open again (for testing)
+  delete kvr; 
+  // repoen kvr
+  switch(kvr_type) {
+    case 0:
+      kvr = NewKVRaid(k, r, 4, slab_list, kvs_conts, (MetaType)meta_type, false, cache);
+      break;
+    case 1:
+      kvr = NewKVMirror(k, r, kvs_conts, cache);
+      break;
+    case 2:
+      kvr = NewKVEC(k, r, 4, slab_list, kvs_conts, (MetaType)meta_type, cache);
+      break;
+    case 3:
+      kvr = NewKVRaidPack(k, r, 4, slab_list, kvs_conts, Mem, false, cache);
+      break;
+    default:
+      kvr = NewKVRaid(k, r, 4, slab_list, kvs_conts, (MetaType)meta_type, false, cache);
+      break;
+  }
 
-    for (int i = 0; i< thread_cnt; i++) {
-        th_get[i]->join();
-    }
-
-    printf("finish erased_get test\n\n");
-
-    for (int i = 0; i< thread_cnt; i++) {
-      if (i%2 == 1)
-        th_update[i] = new std::thread(update, kvr, 100000, false, i);
-      else
-        th_update[i] = new std::thread(get, kvr, 100, i);
-    }
-
-    for (int i = 0; i< thread_cnt; i++) {
-        th_update[i]->join();
-    }
-
-    printf("finish update\n\n");
-
-    // for (int i = 0; i< thread_cnt; i++) {
-    //     th_get[i] = new std::thread(get, kvr, 100, i);
-    // }
-
-    // for (int i = 0; i< thread_cnt; i++) {
-    //     th_get[i]->join();
-    // }
-
-    // printf("finish get\n\n");
-
+  if (workload == "seek") {
     seek(kvr, 19);
     printf("finish iteraotr test\n\n");
-
-    sleep(3);
-
-    //clean up
-    delete kvr;
-
-    for (int i = 0; i < num_ssds; i++) {
-        kvs_conts[i].~KVS_CONT();
-    }
-    free(kvs_conts);
-
-    for (int i = 0; i< thread_cnt; i++) {
-        delete th_load[i];
-        delete th_update[i];
-        delete th_get[i];
+  }
+  else if (workload == "recovery") {
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i] = new std::thread(erased_get, kvr, 100 , i);
     }
 
-    return 0;
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i]->join();
+    }
+    printf("finish erased_get test\n\n");
+  }
+  else if (workload == "rdonly") {
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i] = new std::thread(update, kvr, dist, ops_nums/thread_nums, record_nums, i);
+    }
+
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i]->join();
+    }
+  }
+  else if (workload == "uponly") {
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i] = new std::thread(get, kvr, dist, ops_nums/thread_nums, record_nums, i);
+    }
+
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i]->join();
+    }
+  }
+  else if (workload == "mixed") {
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i] = new std::thread(mixed, kvr, dist, wr_ratio, ops_nums/thread_nums, record_nums, i);
+    }
+
+    for (int i = 0; i< thread_nums; i++) {
+        th_run[i]->join();
+    }
+  }
+
+
+  //clean up
+  delete kvr;
+
+  for (int i = 0; i < num_ssds; i++) {
+      kvs_conts[i].~KVS_CONT();
+  }
+  free(kvs_conts);
+
+  for (int i = 0; i< thread_nums; i++) {
+      delete th_load[i];
+      delete th_run[i];
+  }
+  delete [] th_load;
+  delete [] th_run;
+
+  return 0;
 }

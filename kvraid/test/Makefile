@@ -1,11 +1,12 @@
 
 CC=g++
-INCLUDES=-I../include -I../include/kvssd -I../include/jerasure -I../include/gf-complete
+INCLUDES=-I../include -I../include/kvssd -I../include/jerasure -I../include/gf-complete -I../src
 SRC=../src
 LIBS=-L../libs -lrt -lpthread -lkvapi -lJerasure -lgf_complete -lnuma -lleveldb -std=c++11
 CXXFLAG=-O2 -fPIC -w -march=native
 CXXFLAG_DBG=-O0 -fPIC -w -march=native -g 
 
+CACHE_SRCS=$(SRC)/cache/hash.cc $(SRC)/cache/sharded_cache.cc $(SRC)/cache/lru_cache.cc $(SRC)/cache/wlfu_cache.cc 
 MAP_SRCS=$(SRC)/mapping_table.cpp
 DEV_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c 
 KVRAID_SRCS=$(SRC)/kv_device.cpp $(SRC)/threadpool.c $(SRC)/kvraid.cpp
@@ -26,7 +27,7 @@ test_kvec:
 
 
 test_kvr:
-	$(CC) test_kvr.cpp -o test_kvr $(KVR_SRCS) $(MAP_SRCS)  $(INCLUDES) $(LIBS) $(CXXFLAG_DBG)
+	$(CC) test_kvr.cpp -o test_kvr $(KVR_SRCS) $(CACHE_SRCS) $(MAP_SRCS)  $(INCLUDES) $(LIBS) $(CXXFLAG_DBG)
 
 clean:
 	rm -rf test_kvdevice test_kvraid test_kvec
