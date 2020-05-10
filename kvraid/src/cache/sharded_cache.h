@@ -47,7 +47,7 @@ class ShardedCache : public Cache {
                         void (*deleter)(const Slice& key, void* value)) override;
   virtual Handle* Lookup(const Slice& key) override;
   virtual void Release(Handle* handle) override;
-  virtual void Erase(const Slice& key) override;
+  virtual bool Erase(const Slice& key) override;
 
   virtual size_t GetCapacity() const override;
   virtual size_t GetUsage() override;

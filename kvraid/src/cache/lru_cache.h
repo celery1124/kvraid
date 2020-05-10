@@ -105,7 +105,7 @@ public:
                         void (*deleter)(const Slice& key, void* value)) override;
   Cache::Handle* Lookup(const Slice& key, uint32_t hash) override;
   void Release(Cache::Handle* handle) override;
-  void Erase(const Slice& key, uint32_t hash) override;
+  bool Erase(const Slice& key, uint32_t hash) override;
 
   // Although in some platforms the update of size_t is atomic, to make sure
   // GetUsage() and GetPinnedUsage() work correctly under any platform, we'll

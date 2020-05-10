@@ -36,7 +36,7 @@ void ShardedCache::Release(Handle* handle) {
   GetShard(Shard(hash))->Release(handle);
 }
 
-void ShardedCache::Erase(const Slice& key) {
+bool ShardedCache::Erase(const Slice& key) {
   uint32_t hash = HashSlice(key);
   GetShard(Shard(hash))->Erase(key, hash);
 }

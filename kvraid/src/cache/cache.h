@@ -140,7 +140,7 @@ class Cache {
   // If the cache contains entry for key, erase it.  Note that the
   // underlying entry will be kept around until all existing handles
   // to it have been released.
-  virtual void Erase(const Slice& key) = 0;
+  virtual bool Erase(const Slice& key) = 0;
 
   // sets the maximum configured capacity of the cache. When the new
   // capacity is less than the old capacity and the existing usage is

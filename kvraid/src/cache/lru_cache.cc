@@ -183,7 +183,7 @@ void LRUCacheShard::Release(Cache::Handle* handle) {
   }
 }
 
-void LRUCacheShard::Erase(const Slice& key, uint32_t hash) {
+bool LRUCacheShard::Erase(const Slice& key, uint32_t hash) {
   LRUHandle* h;
   bool last_reference = false;
   {
@@ -204,6 +204,7 @@ void LRUCacheShard::Erase(const Slice& key, uint32_t hash) {
 
   // Free the entry
   if (last_reference) h->Free();
+  return h!=NULL ;
 }
 
 size_t LRUCacheShard::GetUsage() {
