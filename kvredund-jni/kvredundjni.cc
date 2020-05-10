@@ -56,16 +56,19 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         slab_list[i] = slab_array[i].int_value();
     }
     std::string cache_type = config["cache_type"].string_value();
-    int cache_size = config["cache_size"].int_value();
+    int64_t cache_size = config["cache_size"].int_value();
     int cache_shard = config["cache_shard"].int_value();
     if (cache_type == "lru") {
         cache = NewLRUCache(cache_size << 20, cache_shard);
+        printf("Cache LRU {%ld MB, %d} initiated\n", cache_size, cache_shard);
     }
     else if (cache_type == "wlfu") {
         cache = NewLFUCache(cache_size << 20, cache_shard);
+        printf("Cache LFU {%ld MB, %d} initiated\n", cache_size, cache_shard);
     }
     else { // default
         cache = NewLRUCache(cache_size << 20, cache_shard);
+        printf("Cache LRU {%ld MB, %d} initiated\n", cache_size, cache_shard);
     }
 
     num_ssds = k+r;
