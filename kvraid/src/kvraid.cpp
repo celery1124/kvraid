@@ -286,7 +286,7 @@ void SlabQ::processQ(int id) {
             count = dequeue_bulk_timed<kvr_context>(q, kvr_ctxs, k_-total_count, DEQ_TIMEOUT);
 
             if(count == 0) { // dequeue timeout
-                delete kvr_ctxs;
+                delete [] kvr_ctxs;
                 continue;
             }
 

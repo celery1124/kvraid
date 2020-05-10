@@ -373,7 +373,7 @@ public:
             (void) new (&slabs_[i]) SlabQ(this, i, s_list[i], k_, r_, &ec_, slab_seq[i], 1, GC_ENA);
             usleep(10000);
         }
-        delete slab_seq;
+        delete [] slab_seq;
 
         switch (meta_t) {
             case Mem:

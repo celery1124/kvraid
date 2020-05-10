@@ -79,6 +79,11 @@ bool KV_DEVICE::kv_store(phy_key *key, phy_val *value)
     const kvs_store_context put_ctx = {option, 0, 0};
     const kvs_key  kvskey = { (void *)key->c_str(), key->get_klen()};
     const kvs_value kvsvalue = { value->c_val, value->val_len, 0, 0 /*offset */};
+
+    // stats
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
+
     int ret = kvs_store_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &put_ctx);
 
     if (ret != KVS_SUCCESS) {
@@ -90,8 +95,6 @@ bool KV_DEVICE::kv_store(phy_key *key, phy_val *value)
     gettimeofday(&tp, NULL);
     printf("[%.6f] kv_device:insert key: %s, value: %s\n", ((float)(tp.tv_sec*1000000 + tp.tv_usec - ts)) / 1000000 ,ckey, cval);
 #endif
-    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
-    stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 		
 }
@@ -105,15 +108,17 @@ bool KV_DEVICE::kv_store(std::string *key, std::string *value)
     const kvs_store_context put_ctx = {option, 0, 0};
     const kvs_key  kvskey = { (void *)key->c_str(), key->size()};
     const kvs_value kvsvalue = { (void *)value->c_str(), value->size(), 0, 0 /*offset */};
+
+    // stats
+    stats.write_bytes.fetch_add(value->size(), std::memory_order_relaxed);
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
+
     int ret = kvs_store_tuple(cont_->cont_handle, &kvskey, &kvsvalue, &put_ctx);
 
     if (ret != KVS_SUCCESS) {
         printf("STORE tuple failed with err %s\n", kvs_errstr(ret));
         exit(1);
     }
-
-    stats.write_bytes.fetch_add(value->size(), std::memory_order_relaxed);
-    stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 		
 }
@@ -248,6 +253,11 @@ bool KV_DEVICE::kv_astore(phy_key *key, phy_val *value, void (*callback)(void *)
     kvsvalue->value = (void *)value->c_val;
     kvsvalue->length = value->val_len;
     kvsvalue->actual_value_size = kvsvalue->offset = 0;
+
+    // stats
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
+
     kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &put_ctx, on_io_complete);
 
     if (ret != KVS_SUCCESS) {
@@ -255,8 +265,6 @@ bool KV_DEVICE::kv_astore(phy_key *key, phy_val *value, void (*callback)(void *)
         exit(1);
     }
 
-    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
-    stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
@@ -275,6 +283,11 @@ bool KV_DEVICE::kv_astore(std::string *key, phy_val *value, void (*callback)(voi
     kvsvalue->value = (void *)value->c_val;
     kvsvalue->length = value->val_len;
     kvsvalue->actual_value_size = kvsvalue->offset = 0;
+
+    // stats
+    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
+    stats.num_store.fetch_add(1, std::memory_order_relaxed);
+
     kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &put_ctx, on_io_complete);
 
     if (ret != KVS_SUCCESS) {
@@ -282,8 +295,6 @@ bool KV_DEVICE::kv_astore(std::string *key, phy_val *value, void (*callback)(voi
         exit(1);
     }
 
-    stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
-    stats.num_store.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
