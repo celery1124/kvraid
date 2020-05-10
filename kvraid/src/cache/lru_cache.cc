@@ -144,7 +144,6 @@ Cache::Handle* LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* valu
     LRU_Insert(h);
     h->Ref();
     usage_ += total_charge;
-    printf("[insert] usage_ %d, add %d\n", usage_, total_charge);
   }
 }
   
@@ -179,9 +178,7 @@ void LRUCacheShard::Release(Cache::Handle* handle) {
       size_t charge = h->CalcTotalCharge();
       assert(usage_ >= charge);
       usage_ -= charge;
-      printf("[release] usage_ %d, sub %d\n", usage_, charge);
       h->Free();
-        printf("Relase & Erase cache entry\n");
     }
   }
 }
@@ -200,9 +197,7 @@ void LRUCacheShard::Erase(const Slice& key, uint32_t hash) {
         size_t charge = h->CalcTotalCharge();
         assert(usage_ >= charge);
         usage_ -= charge;
-        printf("[erase] usage_ %d, sub %d\n", usage_, charge);
         last_reference = true;
-        printf("Erase cache entry\n");
       }
     }
   }
@@ -242,7 +237,6 @@ void LRUCacheShard::EvictFromLRU(size_t charge, std::vector<LRUHandle*>& deleted
       LRU_Remove(h);
       h = next_h;
       usage_ -= evict_charge;
-      printf("[evict] usage_ %d, sub %d\n", usage_, evict_charge);
     }
     else {
       h = h->next;
