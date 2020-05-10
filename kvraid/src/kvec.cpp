@@ -318,6 +318,8 @@ bool KVEC::kvr_update(kvr_key *key, kvr_value *value) {
     // lookup mapping table
     phy_key pkey;
     std::string skey = std::string(key->key, key->length);
+    // Evict from cache
+    kvr_erase_cache(skey);
     LockEntry *l = req_key_fl_.Lock(skey);
 
     key_map_->lookup(&skey, &pkey);
@@ -369,6 +371,14 @@ bool KVEC::kvr_delete(kvr_key *key) {
 
 bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
+    // First, search for cache
+    Cache::Handle *h = kvr_read_cache(skey, value);
+
+    if (h != NULL) { // hit in cache
+        kvr_release_cache(h);
+        return true;
+    }
+
     LockEntry *l = req_key_fl_.Lock(skey);
 
     phy_key pkey;
@@ -396,6 +406,11 @@ bool KVEC::kvr_get(kvr_key *key, kvr_value *value) {
 
     value->val = (char*)malloc(slab_list_[slab_id]);
     unpack_value(get_val_buf, value);
+
+    // insert to cache
+    h = kvr_insert_cache(skey, value);
+    kvr_release_cache(h);
+
     free(get_val_buf);
 
     return true;
@@ -560,6 +575,6 @@ bool KVEC::load_meta(int size) {
 
 } // end namespace kvec
 
-KVR *NewKVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) {
-    return new kvec::KVEC(num_d, num_r, num_slab, s_list, conts, meta_t);
+KVR *NewKVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, Cache *c) {
+    return new kvec::KVEC(num_d, num_r, num_slab, s_list, conts, meta_t, c);
 }

@@ -8,6 +8,7 @@
 #define RECLAIMS_BULKS 4 * k_
 #define MAX_TRIM_NUM 1024
 #define TRIM_GUARD_NUM 2048
+//#define TRIM_GUARD_NUM 4096
 
 #define GC_DEV_USAGE_VOL_RATIO_THRES 2
 #define GC_DEV_UTIL_THRES 0.55
@@ -730,6 +731,8 @@ bool KVRaidPack::kvr_update(kvr_key *key, kvr_value *value) {
     kvr_value new_value = {pack_val, actual_vlen};
 
     std::string skey = std::string(key->key, key->length);
+    // Evict from cache
+    kvr_erase_cache(skey);
     //LockEntry *l = req_key_fl_.Lock(skey);
 
     // write to the context queue
@@ -773,6 +776,12 @@ bool KVRaidPack::kvr_delete(kvr_key *key) {
 bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
     //LockEntry *l = req_key_fl_.Lock(skey);
+    Cache::Handle *h = kvr_read_cache(skey, value);
+
+    if (h != NULL) { // hit in cache
+        kvr_release_cache(h);
+        return true;
+    }
 
     phy_key pkey;
     // lookup log->phy translation table
@@ -812,6 +821,10 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     value->length = new_val.length;
     value->val = (char*)malloc(new_val.length);
     memcpy(value->val, new_val.val, new_val.length);
+
+    // insert to cache
+    h = kvr_insert_cache(skey, value);
+    kvr_release_cache(h);
 
     free(actual_val);
 
@@ -1026,6 +1039,6 @@ bool KVRaidPack::load_meta(uint64_t *arr, int size) {
 
 } // end namespace kvraid_pack
 
-KVR *NewKVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA) {
-    return new kvraid_pack::KVRaidPack(num_d, num_r, num_slab, s_list, conts, meta_t, GC_ENA);
+KVR *NewKVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA, Cache *c) {
+    return new kvraid_pack::KVRaidPack(num_d, num_r, num_slab, s_list, conts, meta_t, GC_ENA, c);
 }

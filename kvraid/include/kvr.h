@@ -60,7 +60,9 @@ public:
     cache_stats stats_;
     Cache *cache_;
 public:
+    // choose either constructor
     KVR() {cache_ = NewLRUCache(2048 << 20, 0);} // default constructor
+    KVR(Cache *c) : cache_(c) {}; 
     KVR(CacheType t, size_t capacityMB, int shard_bits) {
         switch (t) {
             case LRU:
@@ -125,10 +127,10 @@ public:
     virtual Iterator* NewIterator() = 0;
 };
 
-KVR* NewKVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA);
-KVR* NewKVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t);
-KVR* NewKVMirror(int num_d, int num_r, KVS_CONT *conts);
-KVR* NewKVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA);
+KVR* NewKVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA, Cache *c);
+KVR* NewKVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, Cache *c);
+KVR* NewKVMirror(int num_d, int num_r, KVS_CONT *conts, Cache *c);
+KVR* NewKVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA, Cache *c);
 
 KVR* NewKVDummy(int num_d, KVS_CONT *conts);
 #endif

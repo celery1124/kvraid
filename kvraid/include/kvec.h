@@ -204,8 +204,8 @@ private:
     bool load_meta(int size);
     
 public:
-	KVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t) :
-    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), data_volume_(0){
+	KVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, Cache* c) :
+    KVR(c), k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), data_volume_(0){
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
         ec_.setup();

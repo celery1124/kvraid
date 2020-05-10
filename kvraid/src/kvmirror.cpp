@@ -60,6 +60,9 @@ bool KVMirror::kvr_update(kvr_key *key, kvr_value *value) {
     int dev_idx = get_dev_idx(key->key, key->length);
 
     std::string skey(key->key, key->length);
+    // Evict from cache
+    kvr_erase_cache(skey);
+
     phy_val pval(value->val, value->length);
     Monitor *mons = new Monitor[r_+1];
     for (int i = 0; i < r_+1; i++) {
@@ -105,11 +108,23 @@ bool KVMirror::kvr_get(kvr_key *key, kvr_value *value) {
     int dev_idx = get_dev_idx(key->key, key->length);
 
     std::string skey(key->key, key->length);
+    // First, search for cache
+    Cache::Handle *h = kvr_read_cache(skey, value);
+
+    if (h != NULL) { // hit in cache
+        kvr_release_cache(h);
+        return true;
+    }
+
     value->val = (char*)malloc(MAX_VAL_SIZE);
     phy_val pval(value->val, MAX_VAL_SIZE);
 
     ssds_[dev_idx].kv_get(&skey, &pval);
     value->length = pval.actual_len;
+
+    // insert to cache
+    h = kvr_insert_cache(skey, value);
+    kvr_release_cache(h);
 
     return true;
 }
@@ -136,6 +151,6 @@ bool KVMirror::kvr_write_batch(WriteBatch *batch) {
 
 } // end namespace kvmirror
 
-KVR* NewKVMirror(int num_d, int num_r, KVS_CONT *conts) {
-    return new kvmirror::KVMirror(num_d, num_r, conts);
+KVR* NewKVMirror(int num_d, int num_r, KVS_CONT *conts, Cache *c) {
+    return new kvmirror::KVMirror(num_d, num_r, conts, c);
 }

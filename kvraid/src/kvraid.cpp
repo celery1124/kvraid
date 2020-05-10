@@ -959,6 +959,6 @@ bool KVRaid::load_meta(uint64_t *arr, int size) {
 
 } // end namespace kvraid
 
-KVR *NewKVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA) {
-    return new kvraid::KVRaid(num_d, num_r, num_slab, s_list, conts, meta_t, GC_ENA);
+KVR *NewKVRaid(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA, Cache *c) {
+    return new kvraid::KVRaid(num_d, num_r, num_slab, s_list, conts, meta_t, GC_ENA, c);
 }

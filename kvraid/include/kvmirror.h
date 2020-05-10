@@ -54,7 +54,7 @@ private:
     }
 
 public:
-    KVMirror(int num_d, int num_r, KVS_CONT *conts) : k_(num_d), r_(num_r) {
+    KVMirror(int num_d, int num_r, KVS_CONT *conts, Cache *c) :KVR(c), k_(num_d), r_(num_r) {
         ssds_ = (KV_DEVICE *)malloc(sizeof(KV_DEVICE) * (k_+r_));
         for (int i = 0; i < (k_+r_); i++) {
             (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 64);

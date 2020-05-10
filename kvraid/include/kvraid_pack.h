@@ -26,6 +26,7 @@
 
 #define MAX_ENTRIES_PER_GC 8192
 #define MAX_SCAN_LEN_PER_GC 524288
+//#define MAX_SCAN_LEN_PER_GC 262144
 
 #define IDEAL_KV_PACK_SIZE 8192
 #define MAX_PACK_SIZE 2
@@ -363,8 +364,8 @@ private:
     bool load_meta(uint64_t *arr, int size);
     
 public:
-	KVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA) :
-    k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), do_gc_(false), data_volume_(0){
+	KVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA, Cache *c) :
+    KVR(c), k_(num_d), r_(num_r), num_slab_(num_slab), ec_(num_d,num_r), do_gc_(false), data_volume_(0){
 		slab_list_ = new int[num_slab];
         slabs_ = (SlabQ *)malloc(sizeof(SlabQ)*num_slab);
         ec_.setup();
