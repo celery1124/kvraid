@@ -61,26 +61,26 @@ public:
     Cache *cache_;
 public:
     // choose either constructor
-    KVR() {cache_ = NewLRUCache(2048 << 20, 0);} // default constructor
+    // KVR() {cache_ = NewLRUCache(2048 << 20, 0);} // default constructor
+    KVR() : cache_(NULL) {};
     KVR(Cache *c) : cache_(c) {}; 
-    KVR(CacheType t, size_t capacityMB, int shard_bits) {
-        switch (t) {
-            case LRU:
-                cache_ = NewLRUCache(capacityMB << 20, shard_bits);
-                break;
-            case LFU:
-                cache_ = NewLFUCache(capacityMB << 20, shard_bits);
-                break;
-            default:
-                cache_ = NewLRUCache(capacityMB << 20, shard_bits);
-        }
-    };
+    // KVR(CacheType t, size_t capacityMB, int shard_bits) {
+    //     switch (t) {
+    //         case LRU:
+    //             cache_ = NewLRUCache(capacityMB << 20, shard_bits);
+    //             break;
+    //         case LFU:
+    //             cache_ = NewLFUCache(capacityMB << 20, shard_bits);
+    //             break;
+    //         default:
+    //             cache_ = NewLRUCache(capacityMB << 20, shard_bits);
+    //     }
+    // };
     virtual ~KVR() {
         printf("cache hit: %ld\n",stats_.hit.load());
         printf("cache miss: %ld\n",stats_.miss.load());
         printf("cache fill: %ld\n",stats_.fill.load());
         printf("cache erase: %ld\n",stats_.erase.load());
-        delete cache_;
     };
 
     // define KVR interface
@@ -91,6 +91,7 @@ public:
     
     // KV cache interface
 	virtual Cache::Handle* kvr_read_cache(std::string& key, kvr_value *value) {
+        if (cache_==NULL) return NULL;
         Cache::Handle *h = cache_->Lookup(key);
         if (h != NULL) {
             CacheEntry *rd_val = reinterpret_cast<CacheEntry*>(cache_->Value(h));
@@ -104,6 +105,7 @@ public:
         return h;
     };
     virtual Cache::Handle* kvr_insert_cache(std::string& key, kvr_value *value) {
+        if (cache_==NULL) return NULL;
         CacheEntry *ins_val = new CacheEntry(value->val, value->length);
         size_t charge = sizeof(CacheEntry) + value->length;
         Cache::Handle *h = cache_->Insert(key, reinterpret_cast<void*>(ins_val), charge, DeleteEntry<CacheEntry*>);
@@ -112,11 +114,13 @@ public:
         return h;
     };
     virtual void kvr_erase_cache(std::string& key) {
+        if (cache_==NULL) return ;
         bool evicted = cache_->Erase(key);
 
         if (evicted) stats_.erase.fetch_add(1, std::memory_order_relaxed);
     };
     virtual void kvr_release_cache(Cache::Handle* h) {
+        if (cache_==NULL) return ;
         cache_->Release(h);
     };
 
