@@ -110,9 +110,9 @@ public:
         return h;
     };
     virtual void kvr_erase_cache(std::string& key) {
-        cache_->Erase(key);
+        bool evicted = cache_->Erase(key);
 
-        stats_.erase.fetch_add(1, std::memory_order_relaxed);
+        if (evicted) stats_.erase.fetch_add(1, std::memory_order_relaxed);
     };
     virtual void kvr_release_cache(Cache::Handle* h) {
         cache_->Release(h);
