@@ -132,20 +132,21 @@ Cache::Handle* LFUCacheShard::Insert(const Slice& key, uint32_t hash, void* valu
   h->key_length = key.size();
   h->next = h->prev = NULL;
   h->refs = 0;
+  h->inCache = 0;
   memcpy(h->key_data, key.data(), key.size());
+  size_t total_charge = h->CalcTotalCharge();
 
   LFUHandle *old_h = NULL;
   std::vector<LFUHandle*> lru_list;
 
 {
   std::lock_guard<std::mutex> lck (mutex_);
-  if ((usage_ + charge) > capacity_) {
+  if ((total_charge + charge) > capacity_) {
     // cache full, evict LRU
-    EvictFromLFU(charge, lru_list); // adjust usage_ in call
+    EvictFromLFU(total_charge, lru_list); // adjust usage_ in call
     
   } 
   // insert to LFU list
-  usage_ += charge;
   if ((old_h = table_.Insert(h)) != h) {// entry already exist
     lru_list.push_back(h);
     h = old_h;
@@ -156,6 +157,7 @@ Cache::Handle* LFUCacheShard::Insert(const Slice& key, uint32_t hash, void* valu
   else {
     LFU_Insert(h);
     h->Ref();
+    usage_ += total_charge;
   }
 }
   
@@ -180,28 +182,43 @@ Cache::Handle* LFUCacheShard::Lookup(const Slice& key, uint32_t hash) {
 
 void LFUCacheShard::Release(Cache::Handle* handle) {
   if (handle == NULL) return;
+  bool last_reference = false;
   LFUHandle* h = reinterpret_cast<LFUHandle*>(handle);
   {
     std::lock_guard<std::mutex> lck (mutex_);
-    h->Unref();
-  }
-}
-
-void LFUCacheShard::Erase(const Slice& key, uint32_t hash) {
-  LFUHandle* h;
-  {
-    std::lock_guard<std::mutex> lck (mutex_);
-    h = table_.Remove(key, hash);
-    if (h != nullptr) {
+    last_reference = h->Unref();
+    if (last_reference && (!h->InCache())) { // Erased from cache
       LFU_Remove(h);
       size_t charge = h->CalcTotalCharge();
       assert(usage_ >= charge);
       usage_ -= charge;
+      h->Free();
+    }
+  }
+}
+
+bool LFUCacheShard::Erase(const Slice& key, uint32_t hash) {
+  LFUHandle* h;
+  bool last_reference = false;
+  {
+    std::lock_guard<std::mutex> lck (mutex_);
+    h = table_.Remove(key, hash);
+    if (h != nullptr) {
+      h->SetInCache (false);
+      if (!h->HasRefs()) {
+        // The entry is in LFU since it's in hash and has no external references
+        LFU_Remove(h);
+        size_t charge = h->CalcTotalCharge();
+        assert(usage_ >= charge);
+        usage_ -= charge;
+        last_reference = true;
+      }
     }
   }
 
   // Free the entry
-  h->Free();
+  if (last_reference) h->Free();
+  return h != NULL;
 }
 
 size_t LFUCacheShard::GetUsage() {

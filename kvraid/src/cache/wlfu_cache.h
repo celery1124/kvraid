@@ -24,12 +24,16 @@ public:
   size_t key_length;
   size_t charge;  
 
+  uint8_t inCache; // 0-incache, 1-erased
   // The hash of key(). Used for fast sharding and comparisons.
   uint32_t hash;
   // The number of external refs to this entry. The cache itself is not counted.
   uint32_t refs;
   // Beginning of the key (MUST BE THE LAST FIELD IN THIS STRUCT!)
   char key_data[1];
+
+  bool InCache () { return (inCache == 0); }
+  bool SetInCache (bool flag) { inCache = flag ? 0 : 1; }
 
   // Increase the reference count by 1.
   void Ref() { refs++; }
@@ -121,7 +125,7 @@ public:
                         void (*deleter)(const Slice& key, void* value)) override;
   Cache::Handle* Lookup(const Slice& key, uint32_t hash) override;
   void Release(Cache::Handle* handle) override;
-  void Erase(const Slice& key, uint32_t hash) override;
+  bool Erase(const Slice& key, uint32_t hash) override;
 
   // Although in some platforms the update of size_t is atomic, to make sure
   // GetUsage() and GetPinnedUsage() work correctly under any platform, we'll
