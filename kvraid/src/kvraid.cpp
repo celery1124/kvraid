@@ -702,6 +702,7 @@ bool KVRaid::kvr_delete(kvr_key *key) {
 bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
     //LockEntry *l = req_key_fl_.Lock(skey);
+    // First, search for cache
     Cache::Handle *h = kvr_read_cache(skey, value);
 
     if (h != NULL) { // hit in cache
@@ -717,7 +718,6 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
         printf("[KVRaid::kvr_get] logical key not exist\n");
         exit(-1);
     }
-    // First, search for cache
     
     int slab_id = pkey.get_slab_id();
     int seq = pkey.get_seq();
@@ -726,10 +726,16 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     char *actual_val = (char*)malloc(slab_list_[slab_id]);
     phy_val pval(actual_val, slab_list_[slab_id]);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
+    int retry_cnt = 0;
     exist = ssds_[dev_idx].kv_get(&pkey, &pval);
-    if (!exist) {
-        value->length = 0;
-        return false;
+    while (!exist) {
+        if (++retry_cnt >= 3) {
+            value->length = 0;
+            return false;
+        }
+        usleep(100);
+        exist = ssds_[dev_idx].kv_get(&pkey, &pval);
+        if (exist) break;
     }
     //req_key_fl_.UnLock(skey, l);
 
