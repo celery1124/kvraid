@@ -20,6 +20,7 @@
 KVS_CONT* kv_conts;
 int num_ssds;
 KVR *kvr;
+Cache *cache;
 int batch_size;
 // int slab_list[2] = {1024, 2048};
 
@@ -33,7 +34,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
         file_content = R"({"dev_mode":0,
         "num_data_nodes":4, "num_code_nodes":2, 
         "kvr_type":0, "meta_type":0, "slab_list":[256,512,768,1024,1280],
-        "dev_cap": 10737418240,
+        "dev_cap": 16,
         "batch_Size":6})";
         printf("Using default kvredund config file\n");
     }
@@ -41,18 +42,33 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     // parse json
     const auto config = json11::Json::parse(file_content, err);
     int dev_mode = config["dev_mode"].int_value();
-	int k = config["num_data_nodes"].int_value();
-	int r = config["num_code_nodes"].int_value();
+    int k = config["num_data_nodes"].int_value();
+    int r = config["num_code_nodes"].int_value();
     int kvr_type = config["kvr_type"].int_value();
     int meta_type = config["meta_type"].int_value();
     int gc_ena = config["gc_ena"].int_value();
     json11::Json::array slab_array = config["slab_list"].array_items();
     int64_t dev_cap = (int64_t)config["dev_cap"].number_value();
-	batch_size = config["batch_size"].int_value();
+    batch_size = config["batch_size"].int_value();
     int slab_size = slab_array.size();
     int *slab_list = new int[slab_size];
     for ( int i = 0; i < slab_size; i++ ) {
         slab_list[i] = slab_array[i].int_value();
+    }
+    std::string cache_type = config["cache_type"].string_value();
+    int64_t cache_size = config["cache_size"].int_value();
+    int cache_shard = config["cache_shard"].int_value();
+    if (cache_type == "lru") {
+        cache = NewLRUCache(cache_size << 20, cache_shard);
+        printf("Cache LRU {%ld MB, %d} initiated\n", cache_size, cache_shard);
+    }
+    else if (cache_type == "wlfu") {
+        cache = NewLFUCache(cache_size << 20, cache_shard);
+        printf("Cache LFU {%ld MB, %d} initiated\n", cache_size, cache_shard);
+    }
+    else { // default
+        cache = NewLRUCache(cache_size << 20, cache_shard);
+        printf("Cache LRU {%ld MB, %d} initiated\n", cache_size, cache_shard);
     }
 
     num_ssds = k+r;
@@ -74,19 +90,19 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     }
     switch (kvr_type) {
     case 0 :
-        kvr = NewKVRaid (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), gc_ena==1);
+        kvr = NewKVRaid (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), gc_ena==1, cache);
         printf("[KVRaid] {%d, %d} initiated]\n", k, r);
         break;
     case 1 :
-        kvr = NewKVEC (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type));
+        kvr = NewKVEC (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), cache);
         printf("[KVEC] {%d, %d} initiated]\n", k, r);
         break;
     case 2 :
-        kvr = NewKVMirror (k, r, kv_conts);
+        kvr = NewKVMirror (k, r, kv_conts, cache);
         printf("[KVMirror] {%d, %d} initiated]\n", k, r);
         break;
     case 3 :
-        kvr = NewKVRaidPack  (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), gc_ena==1);
+        kvr = NewKVRaidPack  (k, r, slab_size, slab_list, kv_conts, static_cast<MetaType>(meta_type), gc_ena==1, cache);
         printf("[KVRaidPack] {%d, %d} initiated]\n", k, r);
         break;
     case 9 :
@@ -136,13 +152,14 @@ jbyteArray Java_com_yahoo_ycsb_db_KVredund_get(JNIEnv* env, jobject /*jdb*/,
     kv_val.val = NULL;
 
 	kvr->kvr_get(&kv_key, &kv_val);
+	//kvr->kvr_erased_get(5, &kv_key, &kv_val);
 
-    jbyteArray jret_value = copyBytes(env, kv_val.val, kv_val.length);
-    if (jret_value == nullptr || jkey_len == 0) {
+    if (kv_val.val == nullptr || kv_val.length == 0) {
         // exception occurred
         return nullptr;
     }
 
+    jbyteArray jret_value = copyBytes(env, kv_val.val, kv_val.length);
     // cleanup
     delete[] key;
     free(kv_val.val);
