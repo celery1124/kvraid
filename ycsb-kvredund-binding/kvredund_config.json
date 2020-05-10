@@ -4,8 +4,8 @@
 	"num_code_nodes":2,
 	"slab_list":[1024,2048,3072,4096],
 	"kvr_type":0,
-	"meta_type":0,
+	"meta_type":2,
 	"gc_ena":0,
-	"dev_cap": 85899345920,
+	"dev_cap":100,
 	"batch_size":10 
 }

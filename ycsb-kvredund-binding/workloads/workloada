@@ -29,7 +29,7 @@ workload=com.yahoo.ycsb.workloads.CoreWorkload
 readallfields=true
 
 fieldcount=1
-fieldlength=2000
+fieldlength=4000
 minfieldlength=100
 fieldlengthdistribution=uniform
 
