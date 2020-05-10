@@ -21,7 +21,7 @@ class CacheShard {
                         void (*deleter)(const Slice& key, void* value)) = 0;
   virtual Cache::Handle* Lookup(const Slice& key, uint32_t hash) = 0;
   virtual void Release(Cache::Handle* handle) = 0;
-  virtual void Erase(const Slice& key, uint32_t hash) = 0;
+  virtual bool Erase(const Slice& key, uint32_t hash) = 0;
   virtual void SetCapacity(size_t capacity) = 0;
   virtual size_t GetUsage() = 0;
 };
