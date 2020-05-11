@@ -118,6 +118,7 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
 
 jboolean Java_com_yahoo_ycsb_db_KVredund_close(JNIEnv* env, jobject /*jdb*/) { 
     delete kvr;
+    delete cache;
     for (int i = 0; i < num_ssds; i++) {
        kv_conts[i].~KVS_CONT();
     }
