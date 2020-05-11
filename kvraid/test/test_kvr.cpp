@@ -15,6 +15,20 @@
 #define OBJ_MIN_LEN 100
 #define DEV_CAP 1 << 30
 
+#define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
+#define PBWIDTH 60
+
+#define PROGRESS_OPS 1000
+
+void printProgress (double percentage)
+{
+    double val = (percentage * 100);
+    int lpad = (int) (percentage * PBWIDTH);
+    int rpad = PBWIDTH - lpad;
+    printf ("\r%.2f%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
+    fflush (stdout);
+}
+
 class Random {
  private:
   uint32_t seed_;
@@ -111,6 +125,9 @@ void load(KVR *kvr, int num, bool seq, int tid) {
 
       kvr->kvr_insert(&keys[i], &vals[i]);
       //printf("[%d insert] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+
+      if (tid==0 && (i % (num/1000==0?100:num/1000)) == 0) 
+      printProgress((double)i/num);
   }
   delete [] keys;
   delete [] vals;
@@ -124,47 +141,49 @@ void mixed (KVR *kvr, int dist, double wr_ratio, int ops_nums, int record_nums, 
   kvr_value *vals = new kvr_value[ops_nums];
   int ops ; // 0 - update, 1 - get
   for (int i = 0; i < ops_nums; i++) {
-      ops = (double(rand() % 100) / 100) < wr_ratio ? 0 : 1;
-      int k;
-      if (dist == 0) { // uniform
-        k = key_rand.Uniform(record_nums) ;
-      }
-      else if (dist == 1) { // zipfian
-        k = key_rand.Skewed((int)std::log2(record_nums));
-      }
-      else if (dist == 2) { // seq
-        k = (i + ops_nums*tid) % record_nums;
-      }
-      else { // default
-        k = key_rand.Uniform(record_nums) ;
-      }
-      char key[100];
-      snprintf(key, sizeof(key), "%016d", k);
-      int vlen = vlen_rand.Uniform(OBJ_MAX_LEN-OBJ_MIN_LEN) + OBJ_MIN_LEN;
+    ops = (double(rand() % 100) / 100) < wr_ratio ? 0 : 1;
+    int k;
+    if (dist == 0) { // uniform
+      k = key_rand.Uniform(record_nums) ;
+    }
+    else if (dist == 1) { // zipfian
+      k = key_rand.Skewed((int)std::log2(record_nums));
+    }
+    else if (dist == 2) { // seq
+      k = (i + ops_nums*tid) % record_nums;
+    }
+    else { // default
+      k = key_rand.Uniform(record_nums) ;
+    }
+    char key[100];
+    snprintf(key, sizeof(key), "%016d", k);
+    int vlen = vlen_rand.Uniform(OBJ_MAX_LEN-OBJ_MIN_LEN) + OBJ_MIN_LEN;
 
-      if (ops == 0) {
-        char *value = gen.Generate(vlen);
-        keys[i].key =key;
-        keys[i].length = 16;
-        vals[i].val = value;
-        vals[i].length = vlen;
+    if (ops == 0) {
+      char *value = gen.Generate(vlen);
+      keys[i].key =key;
+      keys[i].length = 16;
+      vals[i].val = value;
+      vals[i].length = vlen;
 
-        kvr->kvr_update(&keys[i], &vals[i]);
-        //printf("[%d update] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
-      }
-      else if (ops == 1) {
-        keys[i].key =key;
-        keys[i].length = 16;
-        vals[i].val = NULL;
-        kvr->kvr_get(&keys[i], &vals[i]);
-        //printf("[get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
-        free(vals[i].val);
-      }
-      else {
-        printf ("Mixed workload wrong ops!\n");
-        exit(-1);
-      }
-      
+      kvr->kvr_update(&keys[i], &vals[i]);
+      //printf("[%d update] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+    }
+    else if (ops == 1) {
+      keys[i].key =key;
+      keys[i].length = 16;
+      vals[i].val = NULL;
+      kvr->kvr_get(&keys[i], &vals[i]);
+      //printf("[get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
+      free(vals[i].val);
+    }
+    else {
+      printf ("Mixed workload wrong ops!\n");
+      exit(-1);
+    }
+
+    if (tid==0 && (i % (ops_nums/1000==0?100:ops_nums/1000)) == 0) 
+      printProgress((double)i/ops_nums);
   }
   delete [] keys;
   delete [] vals;
@@ -203,6 +222,9 @@ void update(KVR *kvr, int dist, int ops_nums, int record_nums, int tid) {
 
     kvr->kvr_update(&keys[i], &vals[i]);
     //printf("[%d update] key %s, val %s\n",tid, key, std::string(value, 8).c_str());
+
+    if (tid==0 && (i % (ops_nums/1000==0?100:ops_nums/1000)) == 0) 
+      printProgress((double)i/ops_nums);
   }
   delete [] keys;
   delete [] vals;
@@ -236,6 +258,9 @@ void get(KVR *kvr, int dist, int ops_nums, int record_nums, int tid) {
     kvr->kvr_get(&keys[i], &vals[i]);
     //printf("[get %d] key %s, val %s, val_len %d\n", tid, key, std::string(vals[i].val, 8).c_str(), vals[i].length);
     free(vals[i].val);
+
+    if (tid==0 && (i % (ops_nums/1000==0?100:ops_nums/1000)) == 0) 
+      printProgress((double)i/ops_nums);
   }
 
   delete [] keys;
@@ -347,7 +372,7 @@ int main(int argc, char *argv[]) {
       th_load[i]->join();
   }
 
-  printf("finish load\n\n");
+  printf("\nfinish load\n\n");
 
   // close kvr and open again (for testing)
   delete kvr; 
@@ -372,7 +397,7 @@ int main(int argc, char *argv[]) {
 
   if (workload == "seek") {
     seek(kvr, 19);
-    printf("finish iteraotr test\n\n");
+    printf("\nfinish iteraotr test\n\n");
   }
   else if (workload == "recovery") {
     for (int i = 0; i< thread_nums; i++) {
@@ -382,7 +407,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i< thread_nums; i++) {
         th_run[i]->join();
     }
-    printf("finish erased_get test\n\n");
+    printf("\nfinish erased_get test\n\n");
   }
   else if (workload == "rdonly") {
     for (int i = 0; i< thread_nums; i++) {
@@ -392,6 +417,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i< thread_nums; i++) {
         th_run[i]->join();
     }
+    printf("\nfinish rdonly test\n\n");
   }
   else if (workload == "uponly") {
     for (int i = 0; i< thread_nums; i++) {
@@ -401,6 +427,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i< thread_nums; i++) {
         th_run[i]->join();
     }
+    printf("\nfinish wronly test\n\n");
   }
   else if (workload == "mixed") {
     for (int i = 0; i< thread_nums; i++) {
@@ -410,7 +437,9 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i< thread_nums; i++) {
         th_run[i]->join();
     }
+    printf("\nfinish mixed test\n\n");
   }
+  else printf("\n no workload [%s]\n\n", workload.c_str());
 
 
   //clean up
