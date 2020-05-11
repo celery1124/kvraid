@@ -528,6 +528,7 @@ void SlabQ::DoReclaim() {
     if (groups.size() == 0) return;
 
     // DO reclaim
+    replace_keys_.clear(); // clear locking key set
     int num_ios = actives.size();
     moodycamel::BlockingConcurrentQueue<kv_context *> kvQ;
     for (auto it = actives.begin(); it != actives.end(); ++it) {
@@ -539,7 +540,15 @@ void SlabQ::DoReclaim() {
         phy_val *pval = new phy_val(c_val, buffer_size);
         reclaim_get_context *aget_ctx = new reclaim_get_context {num_ios, get_pkey, pkey, pval, &kvQ};
         parent_->ssds_[dev_idx].kv_aget(get_pkey, pval, on_reclaim_get_complete, aget_ctx);
+        
+        // write thread to replace_keys_ set ony
+        replace_keys_.insert(*it);
     }
+    usleep(100);
+
+    // Started to lock active KV during GC
+    gc_lock_ready_ = false;
+    gc_on_.store(true);
 
     int count;
     std::vector<kvr_context*> kvr_ctx_vec;
@@ -597,6 +606,16 @@ void SlabQ::DoReclaim() {
     
     // release phy key (for trim)
     add_delete_ids(groups);    
+
+    // Clear GC locking
+    gc_on_.store(false);
+    usleep(100);
+    {
+        // notify all blocking kvr_get
+        std::lock_guard<std::mutex> lk(gc_lock_mtx_);
+        gc_lock_ready_ = true;
+    }
+    gc_lock_cv_.notify_all();
 }
 
 bool SlabQ::CheckGCTrigger() {
@@ -793,8 +812,24 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     int pack_size = slabs_[slab_id].pack_size_;
     int seq = pkey.get_seq();
     int pack_id = seq%pack_size;
-    int dev_idx = ((seq/k_/pack_size % (k_+r_)) + (seq%(k_*pack_size)/pack_size)) % (k_+r_);
 
+    // Lock on GC if needed
+    bool re_lookup_map = false;
+    re_lookup_map = slabs_[slab_id].wait_for_GC(seq);
+
+    if (re_lookup_map) {
+        exist = key_map_->lookup(&skey, &pkey);
+        if (!exist) {
+            printf("[KVRaid::kvr_get] logical key not exist\n");
+            exit(-1);
+        }
+        slab_id = pkey.get_slab_id();
+        pack_size = slabs_[slab_id].pack_size_;
+        seq = pkey.get_seq();
+        pack_id = seq%pack_size;
+    }
+
+    int dev_idx = ((seq/k_/pack_size % (k_+r_)) + (seq%(k_*pack_size)/pack_size)) % (k_+r_);
     char *actual_val = (char*)malloc(slab_list_[slab_id]*slabs_[slab_id].pack_size_);
     phy_val pval(actual_val, slab_list_[slab_id]*slabs_[slab_id].pack_size_);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
