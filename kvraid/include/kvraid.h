@@ -11,6 +11,7 @@
 #include <string>
 #include <new>
 #include <unordered_map>
+#include <unordered_set>
 #include <queue>
 #include <mutex>
 #include <thread>
@@ -206,6 +207,14 @@ private:
     bool gc_ena_;
     bool gc_shutdown_;
 
+    // Fine grind locking mechanism for active KV being GCed
+    std::atomic<bool> gc_on_; // coarse grind indication for kvr_get whether slab is working on GC
+    std::unordered_set<uint64_t> replace_keys_; // active keys being GC (replace)
+    // CV to for locking kvr_get
+    std::mutex gc_lock_mtx_;
+    std::condition_variable gc_lock_cv_;
+    bool gc_lock_ready_ ;
+
     void bg_GC();
     void DoGC();
     void DoTrim();
@@ -244,6 +253,11 @@ public:
         if(gc_ena_) gc_thrd_ = std::thread(&SlabQ::bg_GC, this);
         //t_GC = thrd.native_handle();
         //thrd.detach();
+
+        // GC lock
+        gc_on_.store(false);
+        gc_lock_ready_ = false;
+
     }
     ~SlabQ() {
         delete [] thrd_;
@@ -281,6 +295,16 @@ public:
             gc_shutdown_ = true;
         }
         if (gc_ena_) gc_thrd_.join();
+    }
+
+    bool wait_for_GC(uint64_t seq) {
+        if (!gc_on_.load()) return false;
+        {
+            std::unique_lock<std::mutex> lk(gc_lock_mtx_);
+            while (!gc_lock_ready_)
+                gc_lock_cv_.wait(lk);
+        }
+        return true; // wait on GC, re-lookup mapping table
     }
 };
 
