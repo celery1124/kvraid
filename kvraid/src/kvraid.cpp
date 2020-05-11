@@ -964,6 +964,8 @@ void KVRaid::save_meta() {
     }
     for (int i = 0; i < r_; i++)
         ssds_[i].kv_store(&meta_key, &meta_val); // mirror to num_r devs
+    
+    printf("Finish saving mapping table metadata\n");
 }
     
 bool KVRaid::load_meta(uint64_t *arr, int size) {

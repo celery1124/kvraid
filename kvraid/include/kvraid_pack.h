@@ -303,6 +303,7 @@ public:
             thrd_[i]->join();
             delete thrd_[i];
         }
+        printf("Shutdown Slab-%d worker thread\n", sid_);
     }
     void shutdown_gc() {
         {
@@ -310,8 +311,9 @@ public:
             gc_shutdown_ = true;
         }
         if (gc_ena_) gc_thrd_.join();
+        printf("Shutdown Slab-%d GC thread\n", sid_);
     }
-    
+
     bool wait_for_GC(uint64_t seq) {
         if (!gc_on_.load()) return false;
         if (replace_keys_.find(seq) == replace_keys_.end()) return false;
@@ -366,6 +368,7 @@ private:
             bg_shutdown_ = true;
         }
         bg_thrd_.join();
+        printf("Shutdown KVRaid GC thread\n");
     }
 
     // data volume info
@@ -465,11 +468,14 @@ public:
             slabs_[i].~SlabQ();
         }
         free(slabs_);
+        printf("Destory slabs\n");
         for (int i = 0; i < (k_+r_); i++) {
             ssds_[i].~KV_DEVICE();
         }
         free(ssds_);
+        printf("Destory kvssds\n");
         delete key_map_;
+        printf("Destory key_map\n");
 	}
 
 public:
