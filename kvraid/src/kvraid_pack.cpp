@@ -275,8 +275,7 @@ static void on_delete_complete(void *arg) {
 // bulk dequeue, either dequeue max or wait for time out
 template <class T> 
 static int dequeue_bulk_timed(moodycamel::BlockingConcurrentQueue<T*> &q, 
-    T **kvr_ctxs,
-    size_t max, int64_t timeout_usecs) {
+    T **kvr_ctxs, size_t max, int64_t timeout_usecs) {
     const uint64_t quanta = 100;
     const double timeout = ((double)timeout_usecs - quanta) / 1000000;
     size_t total_count = 0;
@@ -332,9 +331,7 @@ void SlabQ::processQ(int id) {
             }
             int count;
             kvr_context **kvr_ctxs = new kvr_context*[bulk_count]; // TODO might leak when shutdown
-            //count = q.wait_dequeue_bulk_timed(kvr_ctxs, k_-total_count, 7000);
             count = dequeue_bulk_timed<kvr_context>(q, kvr_ctxs, bulk_count-total_count, DEQ_TIMEOUT);
-
             if(count == 0) { // dequeue timeout
                 delete [] kvr_ctxs;
                 continue;
@@ -802,20 +799,32 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     phy_val pval(actual_val, slab_list_[slab_id]*slabs_[slab_id].pack_size_);
     //printf("get [ssd %d] skey %s, pkey %lu\n",dev_idx, skey.c_str(), pkey.get_seq());
     pkey.phykey = pkey.phykey - pack_id;
+
+    int retry_cnt = 0;
     exist = ssds_[dev_idx].kv_get(&pkey, &pval);
-    if (!exist) {
-        value->length = 0;
-        return false;
+    while (!exist) {
+        if (++retry_cnt >= 3) {
+            value->length = 0;
+            return false;
+        }
+        usleep(RD_IO_RETRY_TIMEOUT);
+        exist = ssds_[dev_idx].kv_get(&pkey, &pval);
+        if (exist) break;
     }
 
     //req_key_fl_.UnLock(skey, l);
 
     kvr_value new_val;
-    //unpack_value(pval.c_val, NULL, &new_val);
     exist = new_unpack_value(pack_size, pack_id, pval.c_val, pval.actual_len, NULL, &new_val);
-    if (!exist) {
-        value->length = 0;
-        return false;
+    retry_cnt = 0;
+    while (!exist) {
+        if (++retry_cnt >= 3) {
+            value->length = 0;
+            return false;
+        }
+        usleep(RD_IO_RETRY_TIMEOUT);
+        exist = new_unpack_value(pack_size, pack_id, pval.c_val, pval.actual_len, NULL, &new_val);
+        if (exist) break;
     }
 
     value->length = new_val.length;
