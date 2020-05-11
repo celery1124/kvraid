@@ -24,6 +24,8 @@
 #include "kv_device.h"
 #include "mapping_table.h"
 
+#define RD_IO_RETRY_TIMEOUT 150
+
 #define MAX_ENTRIES_PER_GC 8192
 #define MAX_SCAN_LEN_PER_GC 524288
 

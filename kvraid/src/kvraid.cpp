@@ -733,7 +733,7 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
             value->length = 0;
             return false;
         }
-        usleep(100);
+        usleep(RD_IO_RETRY_TIMEOUT);
         exist = ssds_[dev_idx].kv_get(&pkey, &pval);
         if (exist) break;
     }
