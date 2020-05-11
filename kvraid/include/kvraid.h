@@ -299,6 +299,7 @@ public:
 
     bool wait_for_GC(uint64_t seq) {
         if (!gc_on_.load()) return false;
+        if (replace_keys_.find(seq) == replace_keys_.end()) return false;
         {
             std::unique_lock<std::mutex> lk(gc_lock_mtx_);
             while (!gc_lock_ready_)
