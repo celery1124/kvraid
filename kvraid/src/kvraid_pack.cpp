@@ -297,9 +297,11 @@ static int dequeue_bulk_timed(moodycamel::BlockingConcurrentQueue<T*> &q,
 int SlabQ::get_id() {return sid_;}
 
 void SlabQ::processQ(int id) {
+    bool shutdown = false;
+    bool ready_to_shutdown = false;
     int *pack_id = new int[k_];
     int *pack_offset = new int[k_];
-    while (true) {
+    while (true && (!shutdown)) {
         
         // create EC buffer for new group
         //printf("======create buffer======\n");
@@ -323,10 +325,12 @@ void SlabQ::processQ(int id) {
             // check thread shutdown
             {
                 std::unique_lock<std::mutex> lck (thread_m_[id]);
-                if (shutdown_[id] == true) {
+                if (shutdown_[id] == true && (!ready_to_shutdown)) {
                     delete [] pack_id; 
                     delete [] pack_offset; 
-                    return;
+                    // clean up
+                    sleep(1); // wait all enqueue done
+                    ready_to_shutdown = true;
                 }
             }
             int count;
@@ -334,6 +338,10 @@ void SlabQ::processQ(int id) {
             count = dequeue_bulk_timed<kvr_context>(q, kvr_ctxs, bulk_count-total_count, DEQ_TIMEOUT);
             if(count == 0) { // dequeue timeout
                 delete [] kvr_ctxs;
+                if (ready_to_shutdown && q.size_approx() == 0) {
+                    shutdown = true;
+                    break;
+                }
                 continue;
             }
 
