@@ -685,9 +685,9 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
     kvr_value new_value = {pack_val, actual_vlen};
 
     std::string skey = std::string(key->key, key->length);
-    //LockEntry *l = req_key_fl_.Lock(skey);
     // Evict from cache
     kvr_erase_cache(skey);
+    LockEntry *l = req_key_fl_.Lock(skey);
 
     // write to the context queue
     kvr_context kvr_ctx(KVR_UPDATE, key, &new_value);
@@ -699,7 +699,7 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
         while (!kvr_ctx.ready) kvr_ctx.cv.wait(lck);
     }
 
-    //req_key_fl_.UnLock(skey, l);
+    req_key_fl_.UnLock(skey, l);
 
     free(pack_val);
     return true;
