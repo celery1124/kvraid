@@ -212,6 +212,7 @@ bool SlabQ::slab_update(kvr_value *value, phy_key *pkey) {
     free(pvals_c);
     
     free(data_new);
+    free(data_old);
     for (int i = 0; i < r_; i++) free(codes[i]);
     free(codes);
 }
@@ -279,6 +280,7 @@ bool SlabQ::slab_delete(kvr_key *key, phy_key *pkey) {
     free(pvals_c);
     
     free(data_new);
+    free(data_old);
     for (int i = 0; i < r_; i++) free(codes[i]);
     free(codes);
 
