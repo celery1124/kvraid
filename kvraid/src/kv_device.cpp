@@ -232,6 +232,7 @@ bool KV_DEVICE::kv_get(std::string *key, std::string *value)
     }
     value->clear();
     value->append(vbuf, kvsvalue.actual_value_size);
+    free(vbuf);
     
     stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
     return true;
