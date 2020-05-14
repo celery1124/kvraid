@@ -336,10 +336,13 @@ void SlabQ::processQ(int id) {
                     //printf("insert %s -> %d\n",skey.c_str(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
+                    LockEntry *l = update_key_fl_.Lock(skey); // lock on updating same logical key
                     // update
                     parent_->key_map_->readmodifywrite(&skey, &stale_key, &pkeys[i]);
                     int del_slab_id = stale_key.get_slab_id();
                     parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
+
+                    update_key_fl_.UnLock(skey, l);
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), pkeys[i].get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
@@ -687,7 +690,7 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
     // Evict from cache
     kvr_erase_cache(skey);
-    LockEntry *l = req_key_fl_.Lock(skey);
+    //LockEntry *l = req_key_fl_.Lock(skey);
 
     // write to the context queue
     kvr_context kvr_ctx(KVR_UPDATE, key, &new_value);
@@ -699,7 +702,7 @@ bool KVRaid::kvr_update(kvr_key *key, kvr_value *value) {
         while (!kvr_ctx.ready) kvr_ctx.cv.wait(lck);
     }
 
-    req_key_fl_.UnLock(skey, l);
+    //req_key_fl_.UnLock(skey, l);
 
     free(pack_val);
     return true;
@@ -712,8 +715,9 @@ bool KVRaid::kvr_delete(kvr_key *key) {
     // update log->phy translation table
     bool exist = key_map_->lookup(&skey, &pkey);
     if (!exist) {
-        printf("[KVRaid::kvr_delete] logical key not exist\n");
-        exit(-1);
+        //printf("[KVRaid::kvr_delete] logical key not exist\n");
+        //exit(-1);
+        return false;
     }
     key_map_->erase(&skey);
 
@@ -743,8 +747,9 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     bool exist = key_map_->lookup(&skey, &pkey);
     
     if (!exist) {
-        printf("[KVRaid::kvr_get] logical key not exist\n");
-        exit(-1);
+        // printf("[KVRaid::kvr_get] logical key not exist\n");
+        // exit(-1);
+        return false;
     }
     
     int slab_id = pkey.get_slab_id();
@@ -757,8 +762,9 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     if (re_lookup_map) {
         exist = key_map_->lookup(&skey, &pkey);
         if (!exist) {
-            printf("[KVRaid::kvr_get] logical key not exist\n");
-            exit(-1);
+            // printf("[KVRaid::kvr_get] logical key not exist\n");
+            // exit(-1);
+            return false;
         }
         slab_id = pkey.get_slab_id();
         seq = pkey.get_seq();
@@ -827,8 +833,9 @@ bool KVRaid::kvr_erased_get(int erased, kvr_key *key, kvr_value *value) {
     bool exist = key_map_->lookup(&skey, &pkey);
     
     if (!exist) {
-        printf("[KVRaid::kvr_get] logical key not exist\n");
-        exit(-1);
+        // printf("[KVRaid::kvr_get] logical key not exist\n");
+        // exit(-1);
+        return false;
     }
     
     int slab_id = pkey.get_slab_id();
