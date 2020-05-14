@@ -355,9 +355,14 @@ bool KV_DEVICE::kv_aget(phy_key *key, phy_val *value, void (*callback)(void *), 
     aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_retrieve_context ret_ctx = {option, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
-    if(ret != KVS_SUCCESS) {
-      printf("kv_get_async error %d\n", ret);
-      exit(1);
+
+    int retry_cnt = 0;
+    while(ret != KVS_SUCCESS) {
+        if (++retry_cnt >= 3) {
+            printf("kv_get_async error %d, retry %d\n", ret, retry_cnt);
+            exit(1);
+        }
+      ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
     }
 
     stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
@@ -381,9 +386,15 @@ bool KV_DEVICE::kv_aget(std::string *key, phy_val *value, void (*callback)(void 
     aio_context *aio_ctx = new aio_context {&q_sem, value, argument};
     const kvs_retrieve_context ret_ctx = {option, (void *)callback, (void *)aio_ctx};
     kvs_result ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
-    if(ret != KVS_SUCCESS) {
-      printf("kv_get_async error %d\n", ret);
-      exit(1);
+    
+    int retry_cnt = 0;
+    while(ret != KVS_SUCCESS) {
+        if (++retry_cnt >= 3) {
+            printf("kv_get_async error %d, retry %d\n", ret, retry_cnt);
+            exit(1);
+        }
+      usleep(10);
+      ret = kvs_retrieve_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &ret_ctx, on_io_complete);
     }
 
     stats.num_retrieve.fetch_add(1, std::memory_order_relaxed);
