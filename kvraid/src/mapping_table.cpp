@@ -21,7 +21,7 @@ private:
     std::unordered_map<std::string, phy_key> key_map_;
     std::mutex lock_;
 
-    int serializedSize();
+    uint64_t serializedSize();
     void serialize(char *filename);
     void deserialize(char *filename);
 public:
@@ -148,8 +148,8 @@ public:
     }
 };
 
-int MemMap::serializedSize() {
-    int size = 0;
+uint64_t MemMap::serializedSize() {
+    uint64_t size = 0;
     for (auto it = key_map_.begin(); it != key_map_.end(); ++it) {
         // log_key str, len(u8), phy_key(u64)
         size += it->first.size() + sizeof(uint8_t) + sizeof(uint64_t);
@@ -219,7 +219,7 @@ class CuckooMap : public Map {
 private:
     cuckoohash_map<std::string, phy_key> key_map_;
 
-    int serializedSize();
+    uint64_t serializedSize();
     void serialize(char *filename);
     void deserialize(char *filename);
 public:
@@ -342,8 +342,8 @@ public:
     }
 };
 
-int CuckooMap::serializedSize() {
-    int size = 0;
+uint64_t CuckooMap::serializedSize() {
+    uint64_t size = 0;
     auto lt = key_map_.lock_table();
     for (const auto &it : lt) {
         // log_key str, len(u8), phy_key(u64)

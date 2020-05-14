@@ -208,6 +208,7 @@ private:
     std::mutex dseq_mutex_;
 
     // process request Q
+    FineLock<std::string> update_key_fl_;
     int num_pq_;
     std::mutex *thread_m_;
     bool *shutdown_;
