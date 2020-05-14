@@ -403,10 +403,13 @@ void SlabQ::processQ(int id) {
                     //printf("insert %s -> %d\n",skey.c_str(), assigned_pkey.get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_UPDATE) {
+                    LockEntry *l = update_key_fl_.Lock(skey); // lock on updating same logical key
                     // update
                     parent_->key_map_->readmodifywrite(&skey, &stale_key, &assigned_pkey);
                     int del_slab_id = stale_key.get_slab_id();
                     parent_->slabs_[del_slab_id].dq_insert(stale_key.get_seq());
+
+                    update_key_fl_.UnLock(skey, l);
                     //printf("update %s -> (%d) %d\n",skey.c_str(), stale_key.get_seq(), assigned_pkey.get_seq());
                 }
                 else if (kvr_ctxs[i]->ops == KVR_REPLACE) {
@@ -757,7 +760,7 @@ bool KVRaidPack::kvr_update(kvr_key *key, kvr_value *value) {
     std::string skey = std::string(key->key, key->length);
     // Evict from cache
     kvr_erase_cache(skey);
-    LockEntry *l = req_key_fl_.Lock(skey);
+    //LockEntry *l = req_key_fl_.Lock(skey);
 
     // write to the context queue
     kvr_context kvr_ctx(KVR_UPDATE, key, &new_value);
@@ -769,7 +772,7 @@ bool KVRaidPack::kvr_update(kvr_key *key, kvr_value *value) {
         while (!kvr_ctx.ready) kvr_ctx.cv.wait(lck);
     }
 
-    req_key_fl_.UnLock(skey, l);
+    //req_key_fl_.UnLock(skey, l);
 
     free(pack_val);
     return true;
