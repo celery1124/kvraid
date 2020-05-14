@@ -152,11 +152,12 @@ jbyteArray Java_com_yahoo_ycsb_db_KVredund_get(JNIEnv* env, jobject /*jdb*/,
     kv_key.length = jkey_len;
     kv_val.val = NULL;
 
-	kvr->kvr_get(&kv_key, &kv_val);
+	bool success = kvr->kvr_get(&kv_key, &kv_val);
 	//kvr->kvr_erased_get(5, &kv_key, &kv_val);
 
-    if (kv_val.val == nullptr || kv_val.length == 0) {
+    if (!success && kv_val.val == nullptr || kv_val.length == 0) {
         // exception occurred
+        delete[] key;
         return nullptr;
     }
 
