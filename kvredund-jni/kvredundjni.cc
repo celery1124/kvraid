@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string>
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
 #include <cstddef>
 #include <fstream>
 #include <iostream>
@@ -24,6 +27,18 @@ Cache *cache;
 int batch_size;
 // int slab_list[2] = {1024, 2048};
 
+void handler(int sig) {
+  void *array[20];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 20);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
 
 jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) { 
     std::ifstream ifs("kvredund_config.json");
@@ -112,7 +127,8 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     default :
         return false;
     }
-    
+    signal(SIGSEGV, handler);   // install our handler
+    printf("Install custom error handler to trace call stacks\n");    
     return true;
 }
 
