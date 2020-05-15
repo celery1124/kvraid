@@ -127,8 +127,8 @@ jboolean Java_com_yahoo_ycsb_db_KVredund_init(JNIEnv* env, jobject /*jdb*/) {
     default :
         return false;
     }
-    signal(SIGSEGV, handler);   // install our handler
-    printf("Install custom error handler to trace call stacks\n");    
+    //signal(SIGSEGV, handler);   // install our handler
+    //printf("Install custom error handler to trace call stacks\n");    
     return true;
 }
 
@@ -171,7 +171,7 @@ jbyteArray Java_com_yahoo_ycsb_db_KVredund_get(JNIEnv* env, jobject /*jdb*/,
 	bool success = kvr->kvr_get(&kv_key, &kv_val);
 	//kvr->kvr_erased_get(5, &kv_key, &kv_val);
 
-    if (!success && kv_val.val == nullptr || kv_val.length == 0) {
+    if ((!success) || kv_val.val == nullptr || (kv_val.length == 0)) {
         // exception occurred
         delete[] key;
         return nullptr;
