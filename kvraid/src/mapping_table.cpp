@@ -373,7 +373,7 @@ void CuckooMap::serialize(char *filename) {
         data += sizeof(uint64_t);
     }
     // write to file
-    std::ofstream ofs(filename, std::ofstream::out|std::ios::binary);
+    std::ofstream ofs(filename, std::ofstream::out|std::ios::binary|std::ofstream::trunc);
     ofs.write(buf, size);
 
     // clean up
