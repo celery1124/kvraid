@@ -291,7 +291,7 @@ public:
     void add_delete_id(uint64_t group_id);
     uint64_t get_new_group_id();
     uint64_t get_curr_group_id();
-    int track_finish(uint64_t gid, int r, int batch_ios, int data_ios);
+    int track_finish(uint64_t gid, int req_nums, int batch_ios, int data_ios);
     void dq_insert(uint64_t index);
 
     int get_dev_idx (uint64_t seq) {
