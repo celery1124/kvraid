@@ -201,7 +201,7 @@ static bool new_unpack_value(int pack_size, int pack_id, char *src, int size, kv
             key->key = p;
         }
         p += key_len;
-        assert(p < src+size);
+        assert(p <= src+size);
         uint32_t val_len = *((uint32_t *)(p));
         p += VAL_SIZE_BYTES;
         if (val != NULL) {
@@ -209,7 +209,7 @@ static bool new_unpack_value(int pack_size, int pack_id, char *src, int size, kv
             val->val = p;
         }
         p += val_len;
-        assert(p < src+size);
+        assert(p <= src+size);
         if (i == pack_id) break;
     }
     return true;
