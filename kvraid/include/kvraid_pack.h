@@ -172,6 +172,7 @@ class SlabQ;
 typedef struct {
     uint64_t gid;
     int batch_ios;
+    int req_nums;
     kvr_context **kvr_ctxs;
     phy_key *keys;
     phy_val *vals;
