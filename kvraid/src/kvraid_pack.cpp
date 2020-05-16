@@ -76,7 +76,7 @@ void SlabQ::add_delete_id(uint64_t group_id) {
 }
 
 // 2-group io finish, 1-batch io finish
-int SlabQ::track_finish(uint64_t gid, int r, int batch_ios, int data_ios) {
+int SlabQ::track_finish(uint64_t gid, int req_nums, int batch_ios, int data_ios) {
     std::lock_guard<std::mutex> guard(finish_mtx_);
     if(finish_.count(gid))
         finish_[gid].batch_ios_cnt++;
@@ -88,7 +88,7 @@ int SlabQ::track_finish(uint64_t gid, int r, int batch_ios, int data_ios) {
         return 2;
     }
     else if (finish_[gid].batch_ios_cnt == batch_ios) {
-        finish_[gid].data_ios_cnt += (batch_ios - r);
+        finish_[gid].data_ios_cnt += req_nums;
         return 1;
     } else {
         return 0;
@@ -243,8 +243,9 @@ static void on_bulk_write_complete(void *arg) {
     bulk_io_context *bulk_io_ctx = (bulk_io_context *)arg;
     int k = bulk_io_ctx->k;
     int r = bulk_io_ctx->r;
+    int pack_size = bulk_io_ctx->r;
     bool cleanup = false;
-    int finish_code = bulk_io_ctx->q->track_finish(bulk_io_ctx->gid, r, bulk_io_ctx->batch_ios, k);
+    int finish_code = bulk_io_ctx->q->track_finish(bulk_io_ctx->gid, bulk_io_ctx->req_nums, bulk_io_ctx->batch_ios, k*pack_size);
     switch (finish_code) {
         case 0:
             return;
@@ -400,7 +401,7 @@ void SlabQ::processQ(int id) {
 
             // prepare bulk_io_context
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {group_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
+            {group_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, pack_size_, data, code, this};
 
             // write data
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);

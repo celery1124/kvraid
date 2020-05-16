@@ -178,6 +178,7 @@ typedef struct {
     phy_val *vals;
     int k;
     int r;
+    int pack_size;
     char **data_buf;
     char **code_buf;
     SlabQ *q;
