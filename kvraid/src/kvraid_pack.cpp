@@ -83,12 +83,12 @@ int SlabQ::track_finish(uint64_t gid, int req_nums, int batch_ios, int data_ios)
     else
         finish_[gid] = {1, 0};
 
-    if (finish_[gid].data_ios_cnt == data_ios) {
-        finish_.erase(gid);
-        return 2;
-    }
-    else if (finish_[gid].batch_ios_cnt == batch_ios) {
+    if (finish_[gid].batch_ios_cnt == batch_ios) {
         finish_[gid].data_ios_cnt += req_nums;
+        if (finish_[gid].data_ios_cnt == data_ios) {
+            finish_.erase(gid);
+            return 2;
+        }
         return 1;
     } else {
         return 0;
