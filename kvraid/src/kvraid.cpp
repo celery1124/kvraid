@@ -779,6 +779,7 @@ bool KVRaid::kvr_get(kvr_key *key, kvr_value *value) {
     while (!exist) {
         if (++retry_cnt >= 3) {
             value->length = 0;
+            free(actual_val);
             return false;
         }
         usleep(RD_IO_RETRY_TIMEOUT);
