@@ -880,6 +880,7 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     while (!exist) {
         if (++retry_cnt >= 3) {
             value->length = 0;
+            free(actual_val);
             return false;
         }
         usleep(RD_IO_RETRY_TIMEOUT);
@@ -891,15 +892,9 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
 
     kvr_value new_val;
     exist = new_unpack_value(pack_size, pack_id, pval.c_val, pval.actual_len, NULL, &new_val);
-    retry_cnt = 0;
-    while (!exist) {
-        if (++retry_cnt >= 3) {
-            value->length = 0;
-            return false;
-        }
-        usleep(RD_IO_RETRY_TIMEOUT);
-        exist = new_unpack_value(pack_size, pack_id, pval.c_val, pval.actual_len, NULL, &new_val);
-        if (exist) break;
+    if (!exist) {
+        free(actual_val);
+        return false;
     }
 
     value->length = new_val.length;
