@@ -75,18 +75,23 @@ void SlabQ::add_delete_id(uint64_t group_id) {
     }
 }
 
-bool SlabQ::track_finish(int id, int num_ios) {
+// 2-group io finish, 1-batch io finish
+int SlabQ::track_finish(int gid, int r, int batch_ios, int data_ios) {
     std::lock_guard<std::mutex> guard(finish_mtx_);
-    if(finish_.count(id))
-        finish_[id]++;
+    if(finish_.count(gid))
+        finish_[gid].batch_ios_cnt++;
     else
-        finish_[id] = 1;
+        finish_[gid] = {1, 0};
 
-    if (finish_[id] == num_ios) {
-        finish_.erase(id);
-        return true;
+    if (finish_[gid].data_ios_cnt == data_ios) {
+        finish_.erase(gid);
+        return 2;
+    }
+    else if (finish_[gid].batch_ios_cnt == batch_ios) {
+        finish_[gid].data_ios_cnt += (batch_ios - r);
+        return 1;
     } else {
-        return false;
+        return 0;
     }
 }
 
@@ -236,14 +241,32 @@ static bool new_unpack_replace_value(int pack_size, int pack_id, char *src, int 
 
 static void on_bulk_write_complete(void *arg) {
     bulk_io_context *bulk_io_ctx = (bulk_io_context *)arg;
-    if(!bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->num_ios)) {
-        return;
+    int k = bulk_io_ctx->k;
+    int r = bulk_io_ctx->r;
+    bool cleanup = false;
+    int finish_code = bulk_io_ctx->q->track_finish(bulk_io_ctx->gid, r, bulk_io_ctx->batch_ios, k);
+    switch (finish_code) {
+        case 0:
+            return;
+        case 2:
+            cleanup = true;
+            break;
+        default:
+            break;
     }
+    // if (finish_code == 2) {
+    //     cleanup  = true;
+    // }
+    // else if (finish_code == 1) {
+    //     // do nothing
+    // } else {
+    //     return;
+    // }
     
     // post process
     kvr_context *kvr_ctx;
     phy_key *pkeys = bulk_io_ctx->keys;
-    for (int i = 0; i < bulk_io_ctx->bulk_size; i++) {
+    for (int i = 0; i < (bulk_io_ctx->batch_ios - r); i++) {
         kvr_ctx = bulk_io_ctx->kvr_ctxs[i];
         
         {
@@ -254,9 +277,9 @@ static void on_bulk_write_complete(void *arg) {
     }
 
     // free memory
-    if (bulk_io_ctx->free_buf) {
-        for (int i = 0; i < bulk_io_ctx->k; i++) free(bulk_io_ctx->data_buf[i]);
-        for (int i = 0; i < bulk_io_ctx->r; i++) free(bulk_io_ctx->code_buf[i]);
+    if (cleanup) {
+        for (int i = 0; i < k; i++) free(bulk_io_ctx->data_buf[i]);
+        for (int i = 0; i < r; i++) free(bulk_io_ctx->code_buf[i]);
         delete [] (bulk_io_ctx->data_buf);
         delete [] (bulk_io_ctx->code_buf);
     }
@@ -376,9 +399,8 @@ void SlabQ::processQ(int id) {
             phy_val *pvals = (phy_val *)malloc(sizeof(phy_val)*(io_count+r_));
 
             // prepare bulk_io_context
-            uint64_t unique_id = group_id*k_*pack_size_+total_count;
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {unique_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, total_count+count==bulk_count, this};
+            {group_id, io_count + r_, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
 
             // write data
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);
