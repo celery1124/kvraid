@@ -232,10 +232,12 @@ static bool new_unpack_replace_value(int pack_size, int pack_id, char *src, int 
         key->length = key_len;
         key->key = p;
         p += key_len;
+        assert(p <= src+size);
         uint32_t val_len = *((uint32_t *)(p));
         p += VAL_SIZE_BYTES;
         val->length = KEY_SIZE_BYTES + key_len + VAL_SIZE_BYTES + val_len;
         p += val_len;
+        assert(p <= src+size);
         if (i == pack_id) break;
     }
     return true;
