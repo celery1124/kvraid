@@ -238,7 +238,7 @@ private:
         int batch_ios_cnt;
         int data_ios_cnt;
     };
-    std::unordered_map<int,struct compl_ios_t> finish_;
+    std::unordered_map<uint64_t,struct compl_ios_t> finish_;
     std::mutex finish_mtx_;
 
 public:
@@ -289,7 +289,7 @@ public:
     void add_delete_id(uint64_t group_id);
     uint64_t get_new_group_id();
     uint64_t get_curr_group_id();
-    int track_finish(int gid, int r, int batch_ios, int data_ios);
+    int track_finish(uint64_t gid, int r, int batch_ios, int data_ios);
     void dq_insert(uint64_t index);
 
     int get_dev_idx (uint64_t seq) {

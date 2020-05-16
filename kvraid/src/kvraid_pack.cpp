@@ -76,7 +76,7 @@ void SlabQ::add_delete_id(uint64_t group_id) {
 }
 
 // 2-group io finish, 1-batch io finish
-int SlabQ::track_finish(int gid, int r, int batch_ios, int data_ios) {
+int SlabQ::track_finish(uint64_t gid, int r, int batch_ios, int data_ios) {
     std::lock_guard<std::mutex> guard(finish_mtx_);
     if(finish_.count(gid))
         finish_[gid].batch_ios_cnt++;
@@ -266,7 +266,7 @@ static void on_bulk_write_complete(void *arg) {
     // post process
     kvr_context *kvr_ctx;
     phy_key *pkeys = bulk_io_ctx->keys;
-    for (int i = 0; i < (bulk_io_ctx->batch_ios - r); i++) {
+    for (int i = 0; i < bulk_io_ctx->req_nums; i++) {
         kvr_ctx = bulk_io_ctx->kvr_ctxs[i];
         
         {
@@ -400,7 +400,7 @@ void SlabQ::processQ(int id) {
 
             // prepare bulk_io_context
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {group_id, io_count + r_, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
+            {group_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
 
             // write data
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);
