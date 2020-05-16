@@ -76,17 +76,19 @@ void SlabQ::add_delete_id(uint64_t group_id) {
 }
 
 // 2-group io finish, 1-batch io finish
-int SlabQ::track_finish(uint64_t gid, int req_nums, int batch_ios, int data_ios) {
+int SlabQ::track_finish(uint64_t id, int req_nums, int batch_ios, int total_reqs) {
     std::lock_guard<std::mutex> guard(finish_mtx_);
-    if(finish_.count(gid))
-        finish_[gid].batch_ios_cnt++;
+    if(finish_.count(id))
+        finish_[id]++;
     else
-        finish_[gid] = {1, 0};
+        finish_[id] = 1;
 
-    if (finish_[gid].batch_ios_cnt == batch_ios) {
-        finish_[gid].data_ios_cnt += req_nums;
-        if (finish_[gid].data_ios_cnt == data_ios) {
-            finish_.erase(gid);
+    if (finish_[id] == batch_ios) {
+        finish_.erase(id);
+        uint64_t gid = id/total_reqs;
+        group_finish_[gid] += req_nums;
+        if (group_finish_[gid] == total_reqs) {
+            group_finish_.erase(gid);
             return 2;
         }
         return 1;
@@ -245,7 +247,7 @@ static void on_bulk_write_complete(void *arg) {
     int r = bulk_io_ctx->r;
     int pack_size = bulk_io_ctx->r;
     bool cleanup = false;
-    int finish_code = bulk_io_ctx->q->track_finish(bulk_io_ctx->gid, bulk_io_ctx->req_nums, bulk_io_ctx->batch_ios, k*pack_size);
+    int finish_code = bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->req_nums, bulk_io_ctx->batch_ios, k*pack_size);
     switch (finish_code) {
         case 0:
             return;
@@ -400,8 +402,9 @@ void SlabQ::processQ(int id) {
             phy_val *pvals = (phy_val *)malloc(sizeof(phy_val)*(io_count+r_));
 
             // prepare bulk_io_context
+            uint64_t unique_id = group_id*k_*pack_size_+total_count;
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {group_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, pack_size_, data, code, this};
+            {unique_id, io_count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, pack_size_, data, code, this};
 
             // write data
             dev_idx = (dev_idx_start+chunk_start) % (k_+r_);
