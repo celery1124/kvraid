@@ -201,6 +201,7 @@ static bool new_unpack_value(int pack_size, int pack_id, char *src, int size, kv
             key->key = p;
         }
         p += key_len;
+        assert(p < src+size);
         uint32_t val_len = *((uint32_t *)(p));
         p += VAL_SIZE_BYTES;
         if (val != NULL) {
@@ -208,6 +209,7 @@ static bool new_unpack_value(int pack_size, int pack_id, char *src, int size, kv
             val->val = p;
         }
         p += val_len;
+        assert(p < src+size);
         if (i == pack_id) break;
     }
     return true;
@@ -393,7 +395,6 @@ void SlabQ::processQ(int id) {
             for (int i = 0; i < count; i++){
                 std::string skey = std::string(kvr_ctxs[i]->key->key, kvr_ctxs[i]->key->length);
                 phy_key stale_key;
-                int chunk_id = (total_count + i)/pack_size_ - chunk_start;
 
                 phy_key assigned_pkey(sid_, group_id*k_*pack_size_ + i + total_count);
                 kvr_ctxs[i]->replace_key = assigned_pkey;
@@ -815,8 +816,9 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     bool exist = key_map_->lookup(&skey, &pkey);
     
     if (!exist) {
-        printf("[KVRaidPack::kvr_get] logical key not exist\n");
-        exit(-1);
+        // printf("[KVRaidPack::kvr_get] logical key not exist\n");
+        // exit(-1);
+        return false;
     }
     
     int slab_id = pkey.get_slab_id();
@@ -831,8 +833,9 @@ bool KVRaidPack::kvr_get(kvr_key *key, kvr_value *value) {
     if (re_lookup_map) {
         exist = key_map_->lookup(&skey, &pkey);
         if (!exist) {
-            printf("[KVRaid::kvr_get] logical key not exist\n");
-            exit(-1);
+            // printf("[KVRaid::kvr_get] logical key not exist\n");
+            // exit(-1);
+            return false;
         }
         slab_id = pkey.get_slab_id();
         pack_size = slabs_[slab_id].pack_size_;
