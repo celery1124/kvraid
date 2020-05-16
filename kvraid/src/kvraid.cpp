@@ -74,7 +74,8 @@ void SlabQ::add_delete_id(uint64_t group_id) {
     }
 }
 
-bool SlabQ::track_finish(int id, int num_ios) {
+// 2-group io finish, 1-batch io finish
+int SlabQ::track_finish(uint64_t id, int num_ios, int k, int r) {
     std::lock_guard<std::mutex> guard(finish_mtx_);
     if(finish_.count(id))
         finish_[id]++;
@@ -83,9 +84,15 @@ bool SlabQ::track_finish(int id, int num_ios) {
 
     if (finish_[id] == num_ios) {
         finish_.erase(id);
-        return true;
+        uint64_t gid = id/k;
+        group_finish_[gid] += (num_ios - r);
+        if (group_finish_[gid] == k) {
+            group_finish_.erase(gid);
+            return 2;
+        }
+        return 1;
     } else {
-        return false;
+        return 0;
     }
 }
 
@@ -193,14 +200,24 @@ static void unpack_value(char *src, kvr_key *key, kvr_value *val) {
 
 static void on_bulk_write_complete(void *arg) {
     bulk_io_context *bulk_io_ctx = (bulk_io_context *)arg;
-    if(!bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->num_ios)) {
-        return;
+    int k = bulk_io_ctx->k;
+    int r = bulk_io_ctx->r;
+    bool cleanup = false;
+    int finish_code = bulk_io_ctx->q->track_finish(bulk_io_ctx->id, bulk_io_ctx->num_ios, k, r);
+    switch (finish_code) {
+        case 0:
+            return;
+        case 2:
+            cleanup = true;
+            break;
+        default:
+            break;
     }
     
     // post process
     kvr_context *kvr_ctx;
     phy_key *pkeys = bulk_io_ctx->keys;
-    for (int i = 0; i < bulk_io_ctx->bulk_size; i++) {
+    for (int i = 0; i < (bulk_io_ctx->num_ios - r); i++) {
         kvr_ctx = bulk_io_ctx->kvr_ctxs[i];
         
         {
@@ -211,9 +228,9 @@ static void on_bulk_write_complete(void *arg) {
     }
 
     // free memory
-    if (bulk_io_ctx->free_buf) {
-        for (int i = 0; i < bulk_io_ctx->k; i++) free(bulk_io_ctx->data_buf[i]);
-        for (int i = 0; i < bulk_io_ctx->r; i++) free(bulk_io_ctx->code_buf[i]);
+    if (cleanup) {
+        for (int i = 0; i < k; i++) free(bulk_io_ctx->data_buf[i]);
+        for (int i = 0; i < r; i++) free(bulk_io_ctx->code_buf[i]);
         delete [] (bulk_io_ctx->data_buf);
         delete [] (bulk_io_ctx->code_buf);
     }
@@ -312,7 +329,7 @@ void SlabQ::processQ(int id) {
             // prepare bulk_io_context
             uint64_t unique_id = group_id*k_+total_count;
             bulk_io_context *bulk_io_ctx = new bulk_io_context 
-            {unique_id, count + r_, count, kvr_ctxs, pkeys, pvals, k_, r_, data, code, total_count+count == k_, this};
+            {unique_id, count + r_, kvr_ctxs, pkeys, pvals, k_, r_, data, code, this};
 
             // write data
             dev_idx = (dev_idx_start+total_count) % (k_+r_);

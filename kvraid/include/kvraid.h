@@ -162,7 +162,6 @@ class SlabQ;
 typedef struct {
     uint64_t id;
     int num_ios;
-    int bulk_size;
     kvr_context **kvr_ctxs;
     phy_key *keys;
     phy_val *vals;
@@ -170,7 +169,6 @@ typedef struct {
     int r;
     char **data_buf;
     char **code_buf;
-    bool free_buf;
     SlabQ *q;
 } bulk_io_context;
 
@@ -224,7 +222,8 @@ private:
     bool CheckGCTrigger();
 
     // track bulk io finish
-    std::unordered_map<int,int> finish_;
+    std::unordered_map<uint64_t,int> finish_;
+    std::unordered_map<uint64_t,int> group_finish_;
     std::mutex finish_mtx_;
 
 public:
@@ -272,7 +271,7 @@ public:
     void add_delete_id(uint64_t group_id);
     uint64_t get_new_group_id();
     uint64_t get_curr_group_id();
-    bool track_finish(int id, int num_ios);
+    int track_finish(uint64_t id, int num_ios, int k, int r);
     void dq_insert(uint64_t index);
 
     int get_dev_idx (uint64_t seq) {
