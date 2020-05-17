@@ -260,9 +260,6 @@ bool KV_DEVICE::kv_astore(phy_key *key, phy_val *value, void (*callback)(void *)
     stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
 
-    if (kvsvalue->length <= 0 || kvsvalue->length > 2*1024*1024)
-        print_callstacks();
-
     kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &put_ctx, on_io_complete);
 
     if (ret != KVS_SUCCESS) {
@@ -292,9 +289,6 @@ bool KV_DEVICE::kv_astore(std::string *key, phy_val *value, void (*callback)(voi
     // stats
     stats.write_bytes.fetch_add(value->val_len, std::memory_order_relaxed);
     stats.num_store.fetch_add(1, std::memory_order_relaxed);
-
-    if (kvsvalue->length <= 0 || kvsvalue->length > 2*1024*1024)
-        print_callstacks();
 
     kvs_result ret = kvs_store_tuple_async(cont_->cont_handle, kvskey, kvsvalue, &put_ctx, on_io_complete);
 
