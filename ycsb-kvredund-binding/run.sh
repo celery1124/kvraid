@@ -13,12 +13,12 @@ threads="64"
 #tests="evalf"
 #tests="evala_constant evalb_constant evalc_constant evald_constant evale_constant evalf_constant evala_uniform evalb_uniform evalc_uniform evald_uniform evale_uniform evalf_uniform"
 #tests="evala_uniform evalb_uniform evalc_uniform evald_uniform evalf_uniform wr91_uniform wr82_uniform wr73_uniform wr64_uniform"
-#tests="allw_uniform allr_uniform"
-#tests="wr91_uniform wr73_uniform"
-tests="wr91_uniform wr73_uniform wr55_uniform wr37_uniform wr19_uniform"
+#tests="allw_uniform "
+#tests="wr55_uniform"
+tests=" wr55_uniform wr37_uniform wr19_uniform"
 #tests="recovery_uniform"
-kvredund_type=" 1 2 0 3" # 0-KVRaid 1-KVEC 2-KVMirror 3-KVRaidPack
-meta_type="1 2" # 0-Mem 1-Storage (leveldb) 2-CockoHashMap
+kvredund_type="3 " # 0-KVRaid 1-KVEC 2-KVMirror 3-KVRaidPack
+meta_type="2" # 0-Mem 1-Storage (leveldb) 2-CockoHashMap
 gc_ena="1"
 
 dev_cap='320'
@@ -86,7 +86,7 @@ do
 
 						echo load >> $result_txt
 						printf "load_tp: " >> $result_txt
-						sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{l[NR]=$1} END{for(i=7; i<=NR-3;i++) {SUM+=l[i];CNT++;} {print SUM/CNT}}' >> $result_txt
+						sed '/CLEANUP/d' err.log | sed '/0 operations/d' |grep "operations" |awk '{print $7}'|awk '{l[NR]=$1} END{for(i=7; i<=NR-3;i++) {SUM+=l[i];CNT++;} {print SUM/CNT}}' >> $result_txt
 						printf "\n" >> $result_txt
 						printf "load_lat: " >> $result_txt
 						grep "INSERT" out.log | grep "AverageLatency" | awk '{print $3}' >> $result_txt
@@ -108,9 +108,19 @@ do
 						cat kv_device.log|grep ", get"| awk '{ SUM += $6} END { print SUM }' >> $result_txt
 						printf "write_bytes: " >> $result_txt
 						cat kv_device.log|grep ", get"| awk '{ SUM += $8} END { print SUM }' >> $result_txt
+
 						# report device usage
+						sleep 60 # wait for mapping_table file
+						if [ "$m_type" == "2" ]; then
+							meta_usage=`ls -lh mapping_table.log | awk '{print substr($5,1,length($5)-1)}'`
+						else
+							meta_usage=0
+						fi
 						printf "dev_usage: " >> $result_txt
-						cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
+						data_usage=`cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { printf "%lu", SUM }'`
+						echo "($data_usage + $meta_usage)" | bc >> $result_txt
+						printf "\n" >> $result_txt
+
 						# report cpu
 						cpu_user=`cat err.log | grep "User time" | awk '{print $4}'`
 						cpu_sys=`cat err.log | grep "System time" | awk '{print $4}'`
@@ -120,7 +130,7 @@ do
 						cat err.log | grep "CPU" | awk '{print $7}' >> $result_txt
 
 						rm -rf kv_device.log err.log out.log
-						sleep 10
+						sleep 180
 
 						# ycsb run 
 						retry_cnt=0
@@ -133,7 +143,7 @@ do
 
 							if test -n "$(find ./ -maxdepth 1 -name 'hs_err*' -print -quit)"
 							then
-								rm hs_err*
+								mv hs_err* $result_save_dir/ 
 								let "retry_cnt=retry_cnt+1"
 								if [ $retry_cnt -ge 3 ]; then
 									break
@@ -146,14 +156,17 @@ do
 								echo ycsb run success
 							else
 								echo "un-normal terminate for ycsb run"
+								cp out.log $result_save_dir/
+								cp err.log $result_save_dir/
 								cat err.log
+								mv hs_err* $result_save_dir/
 								break
 							fi
 
 							echo "run" >> $result_txt
 							printf "run_tp: " >> $result_txt
 							tp_lines=`sed '/CLEANUP/d' err.log |grep "operations"| wc -l`
-							sed '/CLEANUP/d' err.log |grep "operations" |awk '{print $7}'|awk '{l[NR]=$1} END{for(i=7; i<=NR-3;i++) {SUM+=l[i];CNT++;} {print SUM/CNT}}' >> $result_txt
+							sed '/CLEANUP/d' err.log | sed '/0 operations/d' |grep "operations" |awk '{print $7}'|awk '{l[NR]=$1} END{for(i=7; i<=NR-3;i++) {SUM+=l[i];CNT++;} {print SUM/CNT}}' >> $result_txt
 							printf "\n" >> $result_txt
 							printf "insert_lat: " >> $result_txt
 							grep "INSERT" out.log | grep "AverageLatency" | awk '{print $3}' >> $result_txt
@@ -221,8 +234,18 @@ do
 							printf "write_bytes: " >> $result_txt
 							cat kv_device.log|grep ", get"| awk '{ SUM += $8} END { print SUM }' >> $result_txt
 							# report device usage
+							sleep 60 # wait for mapping_table file
+							#printf "dev_usage: " >> $result_txt
+							#cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
+							if [ "$m_type" == "2" ]; then
+								meta_usage=`ls -lh mapping_table.log | awk '{print substr($5,1,length($5)-1)}'`
+							else
+								meta_usage=0
+							fi
 							printf "dev_usage: " >> $result_txt
-							cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { print SUM }' >> $result_txt
+							data_usage=`cat kv_device.log|grep "usage"| awk '{ SUM += $2} END { printf "%lu", SUM }'`
+							echo "($data_usage + $meta_usage)" | bc >> $result_txt
+							printf "\n" >> $result_txt
 
 							printf "invalid-alive: " >> $result_txt
 							cat kv_device.log|grep "invalid-alive" | awk '{ SUM += $2} END { print SUM }' >> $result_txt
@@ -254,7 +277,7 @@ do
 						done
 
 						
-						sleep 30
+						sleep 180
 						
 					done
 					sleep 10
