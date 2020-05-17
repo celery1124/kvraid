@@ -457,8 +457,9 @@ public:
         
         // shutdown slab workers
         for (int i = 0; i < num_slab_; i++) {
-            slabs_[i].shutdown_workers();
             slabs_[i].shutdown_gc();
+            sleep(3);
+            slabs_[i].shutdown_workers();
         }
         shutdown_bg();
         // save KVRaidPack state
