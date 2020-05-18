@@ -66,7 +66,7 @@ public:
         sem_destroy(&q_sem);
         FILE *fd = fopen("kv_device.log","a");
         fprintf(fd, "store %d, get %d, delete %d, write_bytes %lu\n",stats.num_store.load(), stats.num_retrieve.load(), stats.num_delete.load(), stats.write_bytes.load());
-        fprintf(fd, "usage %.3f\n", (double)get_capacity()*get_util()/1024/1024);
+        fprintf(fd, "usage %.3f\n", (double)get_capacity()*get_util()/1024/1024/1024); // GB
         fclose(fd);
     };
 
