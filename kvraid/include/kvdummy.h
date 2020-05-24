@@ -36,7 +36,7 @@ private:
     }
 
 public:
-    KVDummy(int num_d, KVS_CONT *conts) : k_(num_d) {
+    KVDummy(int num_d, KVS_CONT *conts, Cache *c) : KVR(c), k_(num_d) {
         ssds_ = (KV_DEVICE *)malloc(sizeof(KV_DEVICE) * (k_));
         for (int i = 0; i < (k_); i++) {
             (void) new(&ssds_[i]) KV_DEVICE(i, &conts[i], 4, 64);

@@ -80,6 +80,6 @@ bool KVDummy::kvr_write_batch(WriteBatch *batch) {
 
 } // end namespace kvdummy
 
-KVR* NewKVDummy(int num_d, KVS_CONT *conts) {
-    return new kvdummy::KVDummy(num_d, conts);
+KVR* NewKVDummy(int num_d, KVS_CONT *conts, Cache *c) {
+    return new kvdummy::KVDummy(num_d, conts, c);
 }

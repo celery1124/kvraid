@@ -136,5 +136,5 @@ KVR* NewKVEC(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, M
 KVR* NewKVMirror(int num_d, int num_r, KVS_CONT *conts, Cache *c);
 KVR* NewKVRaidPack(int num_d, int num_r, int num_slab, int *s_list, KVS_CONT *conts, MetaType meta_t, bool GC_ENA, Cache *c);
 
-KVR* NewKVDummy(int num_d, KVS_CONT *conts);
+KVR* NewKVDummy(int num_d, KVS_CONT *conts, Cache *c);
 #endif
