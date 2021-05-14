@@ -65,5 +65,5 @@ In kvraid directory.
 
 # TODO
 
-<del>Refine README with more instructions on build and run</del>
+Refine README with more instructions on build and run.
 
