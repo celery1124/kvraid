@@ -68,7 +68,7 @@ In kvraid directory.
 ## Related Publication
 
 ```bibtex
-@inproceedings{mian-kvraid,
+@inproceedings{qin-kvraid,
 author = {Qin, Mian and Reddy, A. L. Narasimha and Gratz, Paul V. and Pitchumani, Rekha and Ki, Yang Seok},
 title = {KVRAID: High Performance, Write Efficient, Update Friendly Erasure Coding Scheme for KV-SSDs},
 year = {2021},
